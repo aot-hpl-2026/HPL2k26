@@ -501,7 +501,13 @@ const PlayersManager = ({ team, players, onClose }) => {
   })
 
   const createPlayerMutation = useMutation({
-    mutationFn: (data) => playersApi.createPlayer({ ...data, teamId: team._id }),
+    mutationFn: (data) => {
+      if (data instanceof FormData) {
+        data.append('teamId', team._id)
+        return playersApi.createPlayer(data)
+      }
+      return playersApi.createPlayer({ ...data, teamId: team._id })
+    },
     onSuccess: () => {
       queryClient.invalidateQueries(['admin-players'])
       resetForm()
@@ -542,7 +548,8 @@ const PlayersManager = ({ team, players, onClose }) => {
       role: 'Batsman',
       battingStyle: 'Right-hand',
       bowlingStyle: 'None',
-      isCaptain: false
+      isCaptain: false,
+      image: null
     })
     setShowAddForm(false)
     setEditingPlayer(null)
@@ -556,19 +563,23 @@ const PlayersManager = ({ team, players, onClose }) => {
       role: player.role || 'Batsman',
       battingStyle: player.battingStyle || 'Right-hand',
       bowlingStyle: player.bowlingStyle || 'None',
-      isCaptain: player.isCaptain || false
+      isCaptain: player.isCaptain || false,
+      image: null
     })
     setShowAddForm(true)
   }
 
   // Helper to prepare form data for submission
   const prepareFormData = (formData) => {
-    const data = { ...formData }
-    // Convert jerseyNumber to number if provided, otherwise remove it
-    if (data.jerseyNumber !== '' && data.jerseyNumber !== undefined) {
-      data.jerseyNumber = parseInt(data.jerseyNumber, 10)
-    } else {
-      delete data.jerseyNumber
+    const data = new FormData()
+    data.append('name', formData.name)
+    if (formData.jerseyNumber) data.append('jerseyNumber', formData.jerseyNumber)
+    data.append('role', formData.role)
+    data.append('battingStyle', formData.battingStyle)
+    data.append('bowlingStyle', formData.bowlingStyle || 'None')
+    data.append('isCaptain', formData.isCaptain)
+    if (formData.image) {
+      data.append('image', formData.image)
     }
     return data
   }
@@ -701,6 +712,19 @@ const PlayersManager = ({ team, players, onClose }) => {
                 <span className="label-text">Team Captain</span>
               </label>
             </div>
+          </div>
+
+          <div className="form-control">
+            <label className="label"><span className="label-text">Player Photo</span></label>
+            <input 
+              type="file" 
+              accept="image/*"
+              onChange={(e) => setForm(prev => ({ ...prev, image: e.target.files[0] }))}
+              className="file-input file-input-bordered file-input-sm w-full font-sans"
+            />
+             <label className="label">
+              <span className="label-text-alt text-base-content/60">Supported: JPG, PNG, WEBP</span>
+            </label>
           </div>
 
           <div className="flex justify-end gap-2">

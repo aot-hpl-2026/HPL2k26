@@ -15,7 +15,7 @@ const PlayerCard = ({ player, showTeam = false }) => {
         {/* Image */}
         <div className="relative h-48 bg-gradient-to-br from-base-200 to-base-300 overflow-hidden">
           <img
-            src={getAvatarUrl(player.name)}
+            src={player.imageUrl || getAvatarUrl(player.name)}
             alt={player.name}
             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
           />

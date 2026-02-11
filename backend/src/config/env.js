@@ -25,7 +25,14 @@ export const env = {
   rateLimitMax: parseInt(process.env.RATE_LIMIT_MAX) || 100,
   
   // Logging
-  logLevel: process.env.LOG_LEVEL || "info"
+  logLevel: process.env.LOG_LEVEL || "info",
+
+  // Cloudinary
+  cloudinary: {
+    cloudName: process.env.CLOUDINARY_CLOUD_NAME,
+    apiKey: process.env.CLOUDINARY_API_KEY,
+    apiSecret: process.env.CLOUDINARY_API_SECRET
+  }
 };
 
 export const isProduction = () => env.nodeEnv === "production";

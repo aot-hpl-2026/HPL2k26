@@ -13,6 +13,11 @@ export const apiFetch = async (endpoint, options = {}) => {
     ...options.headers,
   }
 
+  // If body is FormData, let browser set Content-Type with boundary
+  if (options.body instanceof FormData) {
+    delete headers['Content-Type']
+  }
+
   // Add auth token if available
   const token = getAuthToken()
   if (token) {
@@ -44,12 +49,12 @@ export const api = {
   
   post: (endpoint, body) => apiFetch(endpoint, { 
     method: 'POST', 
-    body: JSON.stringify(body) 
+    body: body instanceof FormData ? body : JSON.stringify(body) 
   }),
   
   put: (endpoint, body) => apiFetch(endpoint, { 
     method: 'PUT', 
-    body: JSON.stringify(body) 
+    body: body instanceof FormData ? body : JSON.stringify(body) 
   }),
   
   delete: (endpoint) => apiFetch(endpoint, { method: 'DELETE' }),
