@@ -1,9 +1,10 @@
 import mongoose from "mongoose";
 import { env } from "./env.js";
+import dns from "dns";
 
 export const connectDb = async () => {
   mongoose.set("strictQuery", true);
-  
+
   // Add virtual 'id' field to all JSON output (maps _id to id)
   mongoose.set('toJSON', {
     virtuals: true,
@@ -14,20 +15,24 @@ export const connectDb = async () => {
       return ret;
     }
   });
-  
+
   // Configure connection options for stability
   mongoose.connection.on('error', (err) => {
     console.error('MongoDB connection error:', err.message);
   });
-  
+
   mongoose.connection.on('disconnected', () => {
     console.log('MongoDB disconnected, attempting to reconnect...');
   });
-  
+
   mongoose.connection.on('reconnected', () => {
     console.log('MongoDB reconnected!');
   });
 
+  
+  // Fix DNS SRV resolution issues
+  dns.setServers(["1.1.1.1", "8.8.8.8"]);
+  
   await mongoose.connect(env.mongoUri, {
     autoIndex: true,
     serverSelectionTimeoutMS: 30000, // 30 seconds

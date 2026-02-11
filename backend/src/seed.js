@@ -2,6 +2,7 @@
 import mongoose from "mongoose";
 import bcrypt from "bcryptjs";
 import dotenv from "dotenv";
+import dns from "dns";
 
 dotenv.config();
 
@@ -113,6 +114,8 @@ const teamsData = [
 
 const seed = async () => {
   try {
+    // Fix DNS SRV resolution issues
+    dns.setServers(["1.1.1.1", "8.8.8.8"]);
     await mongoose.connect(process.env.MONGO_URI);
     console.log("✅ Connected to MongoDB");
 
