@@ -32,6 +32,7 @@ import {
 } from 'react-icons/hi2'
 import { authApi, matchesApi, teamsApi, playersApi } from '../services/api'
 import { socketService } from '../services/socket'
+import { getAvatarUrl } from '../utils'
 
 // ============ ADMIN LOGIN COMPONENT ============
 const AdminLogin = ({ onLogin }) => {
@@ -844,14 +845,14 @@ const PlayersManager = ({ team, players, onClose }) => {
               className="flex items-center justify-between p-3 bg-base-200 rounded-lg hover:bg-base-300 transition-colors"
             >
               <div className="flex items-center gap-3">
-                <div 
-                  className="w-10 h-10 rounded-full flex items-center justify-center text-white font-bold"
-                  style={{ backgroundColor: team?.primaryColor || '#8B1538' }}
-                >
-                  {player.jerseyNumber || '#'}
+                <div className="avatar">
+                  <div className="w-12 h-12 rounded-full ring ring-offset-2 ring-offset-base-100" style={{ '--tw-ring-color': team?.primaryColor || '#8B1538' }}>
+                    <img src={player.imageUrl || getAvatarUrl(player.name)} alt={player.name} />
+                  </div>
                 </div>
                 <div>
                   <div className="flex items-center gap-2">
+                    <span className="font-mono font-bold text-lg opacity-60">#{player.jerseyNumber}</span>
                     <span className="font-medium">{player.name}</span>
                     {player.isCaptain && (
                       <span className="badge badge-warning badge-xs">C</span>
