@@ -178,7 +178,7 @@ const Modal = ({ isOpen, onClose, title, children, size = 'md' }) => {
 }
 
 // ============ TEAM CARD COMPONENT ============
-const TeamManagementCard = ({ team, onEdit, onManagePlayers }) => {
+const TeamManagementCard = ({ team, onEdit, onManagePlayers, onDelete }) => {
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
@@ -239,18 +239,117 @@ const TeamManagementCard = ({ team, onEdit, onManagePlayers }) => {
           <button 
             onClick={() => onManagePlayers(team)}
             className="btn btn-sm btn-outline flex-1 gap-1"
+            title="Manage Players"
           >
             <HiUsers className="w-4 h-4" /> Players
           </button>
           <button 
             onClick={() => onEdit(team)}
-            className="btn btn-sm btn-primary flex-1 gap-1"
+            className="btn btn-sm btn-primary gap-1"
+            title="Edit Team"
           >
-            <HiPencil className="w-4 h-4" /> Edit
+            <HiPencil className="w-4 h-4" />
+          </button>
+          <button 
+            onClick={() => onDelete(team)}
+            className="btn btn-sm btn-error btn-outline gap-1"
+            title="Delete Team"
+          >
+            <HiTrash className="w-4 h-4" />
           </button>
         </div>
       </div>
     </motion.div>
+  )
+}
+
+// ============ DELETE TEAM MODAL ============
+const DeleteTeamModal = ({ team, isOpen, onClose, onDelete, isDeleting }) => {
+  const [confirmName, setConfirmName] = useState('')
+  const [errorInput, setErrorInput] = useState(false)
+  
+  // Reset state when modal opens/closes
+  useEffect(() => {
+    if (isOpen) {
+      setConfirmName('')
+      setErrorInput(false)
+    }
+  }, [isOpen])
+
+  if (!isOpen || !team) return null
+  
+  const isMatch = team && confirmName === team.name
+
+  const handleDelete = () => {
+    if (isMatch) {
+      onDelete(team._id)
+    } else {
+      setErrorInput(true)
+    }
+  }
+
+  return (
+    <Modal
+      isOpen={isOpen}
+      onClose={onClose}
+      title={`Delete ${team.name}`}
+      size="sm"
+    >
+      <div className="space-y-4">
+        <div className="alert alert-error bg-error/10 text-error border-error/20">
+          <HiExclamationTriangle className="w-6 h-6 shrink-0" />
+          <div className="w-full">
+            <h3 className="font-bold">Warning: Irreversible Action</h3>
+            <div className="text-xs mt-1 space-y-1">
+              <p>This will permanently delete <strong>{team.name}</strong> and remove:</p>
+              <ul className="list-disc list-inside opacity-80 pl-1">
+                <li>All players in this team</li>
+                <li>All team statistics and history</li>
+                <li>Association with any matches</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+
+        <div className="form-control w-full">
+          <label className="label">
+            <span className="label-text">
+              Type <span className="font-mono font-bold select-all bg-base-200 px-1 rounded">{team.name}</span> to confirm:
+            </span>
+          </label>
+          <input
+            type="text"
+            value={confirmName}
+            onChange={(e) => {
+              setConfirmName(e.target.value)
+              setErrorInput(false)
+            }}
+            className={`input input-bordered w-full ${errorInput ? 'input-error' : ''} ${isMatch ? 'input-success' : ''}`}
+            placeholder={team.name}
+            autoFocus
+          />
+        </div>
+
+        <div className="flex justify-end gap-2 pt-4">
+          <button 
+            type="button" 
+            onClick={onClose}
+            className="btn btn-ghost"
+            disabled={isDeleting}
+          >
+            Cancel
+          </button>
+          <button 
+            type="button" 
+            onClick={handleDelete}
+            className="btn btn-error"
+            disabled={!isMatch || isDeleting}
+          >
+            {isDeleting ? <span className="loading loading-spinner loading-sm"></span> : 'Delete Team'}
+          </button>
+        </div>
+      </div>
+    </Modal>
   )
 }
 
@@ -259,6 +358,7 @@ const TeamsTab = () => {
   const queryClient = useQueryClient()
   const [showModal, setShowModal] = useState(false)
   const [showPlayersModal, setShowPlayersModal] = useState(false)
+  const [showDeleteModal, setShowDeleteModal] = useState(false)
   const [selectedTeam, setSelectedTeam] = useState(null) // null means creating new team
   const [teamForm, setTeamForm] = useState({
     name: '',
@@ -324,6 +424,18 @@ const TeamsTab = () => {
     }
   })
 
+  const deleteTeamMutation = useMutation({
+    mutationFn: (teamId) => teamsApi.deleteTeam(teamId),
+    onSuccess: () => {
+      queryClient.invalidateQueries(['admin-teams'])
+      setShowDeleteModal(false)
+      toast.success('Team deleted successfully!')
+    },
+    onError: (error) => {
+      toast.error('Failed to delete team: ' + (error?.message || 'Unknown error'))
+    }
+  })
+
   const handleAddTeam = () => {
     setSelectedTeam(null)
     setTeamForm({
@@ -352,6 +464,11 @@ const TeamsTab = () => {
       logo: null // Don't preload file input
     })
     setShowModal(true)
+  }
+
+  const handleDeleteTeam = (team) => {
+    setSelectedTeam(team)
+    setShowDeleteModal(true)
   }
 
   const handleManagePlayers = (team) => {
@@ -420,9 +537,19 @@ const TeamsTab = () => {
             team={team}
             onEdit={handleEditTeam}
             onManagePlayers={handleManagePlayers}
+            onDelete={handleDeleteTeam}
           />
         ))}
       </div>
+
+      {/* Delete Team Modal */}
+      <DeleteTeamModal
+        team={selectedTeam}
+        isOpen={showDeleteModal}
+        onClose={() => setShowDeleteModal(false)}
+        onDelete={(teamId) => deleteTeamMutation.mutate(teamId)}
+        isDeleting={deleteTeamMutation.isPending}
+      />
 
       {/* Edit Team Modal */}
       <Modal
