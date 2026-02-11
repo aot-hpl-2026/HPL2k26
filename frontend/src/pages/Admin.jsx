@@ -560,7 +560,7 @@ const TeamsTab = () => {
       <div className="flex justify-between items-center">
         <div>
           <h2 className="font-epic font-bold text-2xl">Teams Management</h2>
-          <p className="text-base-content/60">Manage all 6 HPL 2026 teams</p>
+          <p className="text-base-content/60">Manage all HPL 2026 teams</p>
         </div>
         <div className="flex gap-2">
           <button 
@@ -966,7 +966,17 @@ const PlayersManager = ({ team, players, onClose }) => {
                 <input
                   type="checkbox"
                   checked={form.isCaptain}
-                  onChange={(e) => setForm(prev => ({ ...prev, isCaptain: e.target.checked }))}
+                  onChange={(e) => {
+                    const isChecked = e.target.checked
+                    if (isChecked) {
+                      const existingCaptain = players.find(p => p.isCaptain && p._id !== editingPlayer?._id)
+                      if (existingCaptain) {
+                        toast.error(`Team already has a captain: ${existingCaptain.name}`)
+                        return
+                      }
+                    }
+                    setForm(prev => ({ ...prev, isCaptain: isChecked }))
+                  }}
                   className="checkbox checkbox-primary checkbox-sm"
                 />
                 <span className="label-text">Team Captain</span>

@@ -19,6 +19,11 @@ export const createPlayer = async (payload) => {
   const team = await Team.findById(payload.teamId);
   if (!team) throw new ApiError("Team not found", 404);
 
+  if (payload.isCaptain) {
+    const existingCaptain = await Player.findOne({ team: payload.teamId, isCaptain: true });
+    if (existingCaptain) throw new ApiError(`Team already has a captain: ${existingCaptain.name}`, 400);
+  }
+
   return Player.create({
     team: payload.teamId,
     name: payload.name,
@@ -82,6 +87,21 @@ export const updatePlayer = async (playerId, payload) => {
   if (payload.battingStyle !== undefined) updateData.battingStyle = payload.battingStyle;
   if (payload.bowlingStyle !== undefined) updateData.bowlingStyle = payload.bowlingStyle;
   if (payload.imageUrl !== undefined) updateData.imageUrl = payload.imageUrl;
+  
+  if (payload.isCaptain) {
+    const playerToCheck = await Player.findById(playerId);
+    if (!playerToCheck) throw new ApiError("Player not found", 404);
+    
+    const teamToCheck = payload.teamId || playerToCheck.team;
+    
+    const existingCaptain = await Player.findOne({ 
+      team: teamToCheck, 
+      isCaptain: true, 
+      _id: { $ne: playerId } 
+    });
+    if (existingCaptain) throw new ApiError(`Team already has a captain: ${existingCaptain.name}`, 400);
+  }
+
   if (payload.isCaptain !== undefined) updateData.isCaptain = payload.isCaptain;
   if (payload.isActive !== undefined) updateData.isActive = payload.isActive;
   if (payload.teamId !== undefined) updateData.team = payload.teamId;
