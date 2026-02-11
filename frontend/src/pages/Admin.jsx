@@ -353,6 +353,55 @@ const DeleteTeamModal = ({ team, isOpen, onClose, onDelete, isDeleting }) => {
   )
 }
 
+// ============ DELETE MATCH MODAL ============
+const DeleteMatchModal = ({ match, isOpen, onClose, onDelete, isDeleting }) => {
+  if (!isOpen || !match) return null
+
+  return (
+    <Modal
+      isOpen={isOpen}
+      onClose={onClose}
+      title="Delete Match"
+      size="sm"
+    >
+      <div className="space-y-4">
+        <div className="alert alert-error bg-error/10 text-error border-error/20">
+          <HiExclamationTriangle className="w-6 h-6 shrink-0" />
+          <div className="w-full">
+            <h3 className="font-bold">Delete Scheduled Match?</h3>
+            <div className="text-sm mt-1">
+              <p>Are you sure you want to delete this match between:</p>
+              <div className="font-bold my-1 p-2 bg-base-100 rounded border border-error/20">
+                {match.teamA?.shortName || match.teamA?.name} vs {match.teamB?.shortName || match.teamB?.name}
+              </div>
+              <p className="opacity-80">This action cannot be undone.</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="flex justify-end gap-2 pt-2">
+          <button 
+            type="button" 
+            onClick={onClose}
+            className="btn btn-ghost"
+            disabled={isDeleting}
+          >
+            Cancel
+          </button>
+          <button 
+            type="button" 
+            onClick={() => onDelete(match._id)}
+            className="btn btn-error"
+            disabled={isDeleting}
+          >
+            {isDeleting ? <span className="loading loading-spinner loading-sm"></span> : 'Delete Match'}
+          </button>
+        </div>
+      </div>
+    </Modal>
+  )
+}
+
 // ============ TEAMS MANAGEMENT TAB ============
 const TeamsTab = () => {
   const queryClient = useQueryClient()
@@ -1199,6 +1248,14 @@ const MatchesTab = ({ onGoToScoring }) => {
                       <HiCog6Tooth className="w-4 h-4" /> Score
                     </button>
                   )}
+                  
+                  <button 
+                    onClick={() => handleDeleteMatch(match)}
+                    className="btn btn-ghost btn-sm btn-square text-error"
+                    title="Delete Match"
+                  >
+                    <HiTrash className="w-4 h-4" />
+                  </button>
                 </div>
               </div>
 
@@ -1207,30 +1264,8 @@ const MatchesTab = ({ onGoToScoring }) => {
                 <div className="mt-4 pt-4 border-t border-base-200">
                   <div className="flex justify-center gap-8">
                     <div className="text-center">
-                          <button
-                            className="btn btn-error btn-sm gap-1"
-                            onClick={() => handleDeleteMatch(match)}
-                            disabled={deleteMatchMutation.isPending}
-                          >
-                            <HiTrash className="w-4 h-4" /> Delete
-                          </button>
                       <p className="text-2xl font-bold">
                         {match.score.runs}/{match.score.wickets}
-                            {/* Delete Match Confirmation Modal */}
-                            {showDeleteModal && (
-                              <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-                                <div className="bg-base-100 rounded-xl shadow-lg p-6 w-full max-w-md">
-                                  <h3 className="font-bold text-lg mb-2 text-error">Delete Match?</h3>
-                                  <p className="mb-4">Are you sure you want to delete <span className="font-semibold">{matchToDelete?.teamA?.name} vs {matchToDelete?.teamB?.name}</span> and all its details? This action cannot be undone.</p>
-                                  <div className="flex gap-2 justify-end">
-                                    <button className="btn btn-ghost" onClick={() => setShowDeleteModal(false)} disabled={deleteMatchMutation.isPending}>Cancel</button>
-                                    <button className="btn btn-error" onClick={() => deleteMatchMutation.mutate(matchToDelete._id)} disabled={deleteMatchMutation.isPending}>
-                                      {deleteMatchMutation.isPending ? <span className="loading loading-spinner loading-sm"></span> : 'Delete'}
-                                    </button>
-                                  </div>
-                                </div>
-                              </div>
-                            )}
                       </p>
                       <p className="text-sm text-base-content/60">
                         ({match.score.overs} ov)
@@ -1331,6 +1366,15 @@ const MatchesTab = ({ onGoToScoring }) => {
           </div>
         </form>
       </Modal>
+
+      {/* Delete Match Modal */}
+      <DeleteMatchModal
+        match={matchToDelete}
+        isOpen={showDeleteModal}
+        onClose={() => setShowDeleteModal(false)}
+        onDelete={(matchId) => deleteMatchMutation.mutate(matchId)}
+        isDeleting={deleteMatchMutation.isPending}
+      />
     </div>
   )
 }
