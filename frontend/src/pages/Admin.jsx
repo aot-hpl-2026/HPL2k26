@@ -256,10 +256,19 @@ const TeamManagementCard = ({ team, onEdit, onManagePlayers }) => {
 // ============ TEAMS MANAGEMENT TAB ============
 const TeamsTab = () => {
   const queryClient = useQueryClient()
-  const [showEditModal, setShowEditModal] = useState(false)
+  const [showModal, setShowModal] = useState(false)
   const [showPlayersModal, setShowPlayersModal] = useState(false)
-  const [selectedTeam, setSelectedTeam] = useState(null)
-  const [editForm, setEditForm] = useState({})
+  const [selectedTeam, setSelectedTeam] = useState(null) // null means creating new team
+  const [teamForm, setTeamForm] = useState({
+    name: '',
+    shortName: '',
+    hostel: '',
+    description: '',
+    motto: '',
+    primaryColor: '#8B1538',
+    secondaryColor: '#FFD700',
+    logo: null
+  })
 
   const { data: teamsData, isLoading } = useQuery({
     queryKey: ['admin-teams'],
@@ -274,11 +283,39 @@ const TeamsTab = () => {
   const teams = teamsData?.data || []
   const allPlayers = playersData?.data || []
 
+  // Helper to prepare FormData
+  const prepareTeamFormData = (form) => {
+    const formData = new FormData()
+    formData.append('name', form.name)
+    formData.append('shortName', form.shortName)
+    formData.append('hostel', form.hostel)
+    formData.append('description', form.description)
+    formData.append('motto', form.motto)
+    formData.append('primaryColor', form.primaryColor)
+    formData.append('secondaryColor', form.secondaryColor)
+    if (form.logo) {
+      formData.append('logo', form.logo)
+    }
+    return formData
+  }
+
+  const createTeamMutation = useMutation({
+    mutationFn: (data) => teamsApi.createTeam(data),
+    onSuccess: () => {
+      queryClient.invalidateQueries(['admin-teams'])
+      setShowModal(false)
+      toast.success('Team created successfully!')
+    },
+    onError: (error) => {
+      toast.error('Failed to create team: ' + (error?.message || 'Unknown error'))
+    }
+  })
+
   const updateTeamMutation = useMutation({
     mutationFn: ({ teamId, data }) => teamsApi.updateTeam(teamId, data),
     onSuccess: () => {
       queryClient.invalidateQueries(['admin-teams'])
-      setShowEditModal(false)
+      setShowModal(false)
       toast.success('Team updated successfully!')
     },
     onError: (error) => {
@@ -286,18 +323,34 @@ const TeamsTab = () => {
     }
   })
 
+  const handleAddTeam = () => {
+    setSelectedTeam(null)
+    setTeamForm({
+      name: '',
+      shortName: '',
+      hostel: '',
+      description: '',
+      motto: '',
+      primaryColor: '#8B1538',
+      secondaryColor: '#FFD700',
+      logo: null
+    })
+    setShowModal(true)
+  }
+
   const handleEditTeam = (team) => {
     setSelectedTeam(team)
-    setEditForm({
+    setTeamForm({
       name: team.name || '',
       shortName: team.shortName || '',
       hostel: team.hostel || '',
       description: team.description || '',
       motto: team.motto || '',
       primaryColor: team.primaryColor || '#8B1538',
-      secondaryColor: team.secondaryColor || '#FFD700'
+      secondaryColor: team.secondaryColor || '#FFD700',
+      logo: null // Don't preload file input
     })
-    setShowEditModal(true)
+    setShowModal(true)
   }
 
   const handleManagePlayers = (team) => {
@@ -305,12 +358,18 @@ const TeamsTab = () => {
     setShowPlayersModal(true)
   }
 
-  const handleUpdateTeam = (e) => {
+  const handleSubmit = (e) => {
     e.preventDefault()
-    updateTeamMutation.mutate({
-      teamId: selectedTeam._id,
-      data: editForm
-    })
+    const formData = prepareTeamFormData(teamForm)
+    
+    if (selectedTeam) {
+      updateTeamMutation.mutate({
+        teamId: selectedTeam._id,
+        data: formData
+      })
+    } else {
+      createTeamMutation.mutate(formData)
+    }
   }
 
   const getTeamPlayers = (teamId) => {
@@ -336,12 +395,20 @@ const TeamsTab = () => {
           <h2 className="font-epic font-bold text-2xl">Teams Management</h2>
           <p className="text-base-content/60">Manage all 6 HPL 2026 teams</p>
         </div>
-        <button 
-          onClick={() => queryClient.invalidateQueries(['admin-teams'])}
-          className="btn btn-ghost btn-sm gap-2"
-        >
-          <HiArrowPath className="w-4 h-4" /> Refresh
-        </button>
+        <div className="flex gap-2">
+          <button 
+            onClick={handleAddTeam}
+            className="btn btn-primary btn-sm gap-2"
+          >
+            <HiPlus className="w-4 h-4" /> Add Team
+          </button>
+          <button 
+            onClick={() => queryClient.invalidateQueries(['admin-teams'])}
+            className="btn btn-ghost btn-sm gap-2"
+          >
+            <HiArrowPath className="w-4 h-4" /> Refresh
+          </button>
+        </div>
       </div>
 
       {/* Teams Grid */}
@@ -358,19 +425,19 @@ const TeamsTab = () => {
 
       {/* Edit Team Modal */}
       <Modal
-        isOpen={showEditModal}
-        onClose={() => setShowEditModal(false)}
-        title={`Edit ${selectedTeam?.name || 'Team'}`}
+        isOpen={showModal}
+        onClose={() => setShowModal(false)}
+        title={`${selectedTeam ? 'Edit' : 'Add'} ${selectedTeam?.name || 'Team'}`}
         size="md"
       >
-        <form onSubmit={handleUpdateTeam} className="space-y-4">
+        <form onSubmit={handleSubmit} className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
             <div className="form-control">
               <label className="label"><span className="label-text">Team Name</span></label>
               <input
                 type="text"
-                value={editForm.name}
-                onChange={(e) => setEditForm(prev => ({ ...prev, name: e.target.value }))}
+                value={teamForm.name}
+                onChange={(e) => setTeamForm(prev => ({ ...prev, name: e.target.value }))}
                 className="input input-bordered"
                 required
               />
@@ -379,10 +446,11 @@ const TeamsTab = () => {
               <label className="label"><span className="label-text">Short Name</span></label>
               <input
                 type="text"
-                value={editForm.shortName}
-                onChange={(e) => setEditForm(prev => ({ ...prev, shortName: e.target.value }))}
+                value={teamForm.shortName}
+                onChange={(e) => setTeamForm(prev => ({ ...prev, shortName: e.target.value }))}
                 className="input input-bordered"
                 maxLength={4}
+                required
               />
             </div>
           </div>
@@ -391,8 +459,8 @@ const TeamsTab = () => {
             <label className="label"><span className="label-text">Hostel</span></label>
             <input
               type="text"
-              value={editForm.hostel}
-              onChange={(e) => setEditForm(prev => ({ ...prev, hostel: e.target.value }))}
+              value={teamForm.hostel}
+              onChange={(e) => setTeamForm(prev => ({ ...prev, hostel: e.target.value }))}
               className="input input-bordered"
             />
           </div>
@@ -401,8 +469,8 @@ const TeamsTab = () => {
             <label className="label"><span className="label-text">Motto</span></label>
             <input
               type="text"
-              value={editForm.motto}
-              onChange={(e) => setEditForm(prev => ({ ...prev, motto: e.target.value }))}
+              value={teamForm.motto}
+              onChange={(e) => setTeamForm(prev => ({ ...prev, motto: e.target.value }))}
               className="input input-bordered"
             />
           </div>
@@ -410,11 +478,26 @@ const TeamsTab = () => {
           <div className="form-control">
             <label className="label"><span className="label-text">Description</span></label>
             <textarea
-              value={editForm.description}
-              onChange={(e) => setEditForm(prev => ({ ...prev, description: e.target.value }))}
+              value={teamForm.description}
+              onChange={(e) => setTeamForm(prev => ({ ...prev, description: e.target.value }))}
               className="textarea textarea-bordered"
               rows={3}
             />
+          </div>
+
+          <div className="form-control">
+            <label className="label"><span className="label-text">Team Logo</span></label>
+            <input 
+              type="file" 
+              accept="image/*"
+              onChange={(e) => setTeamForm(prev => ({ ...prev, logo: e.target.files[0] }))}
+              className="file-input file-input-bordered file-input-sm w-full font-sans"
+            />
+            {selectedTeam?.logo && (
+              <label className="label">
+                <span className="label-text-alt text-base-content/60">Current logo will be kept if no file selected</span>
+              </label>
+            )}
           </div>
 
           <div className="grid grid-cols-2 gap-4">
@@ -423,14 +506,14 @@ const TeamsTab = () => {
               <div className="flex gap-2">
                 <input
                   type="color"
-                  value={editForm.primaryColor}
-                  onChange={(e) => setEditForm(prev => ({ ...prev, primaryColor: e.target.value }))}
+                  value={teamForm.primaryColor}
+                  onChange={(e) => setTeamForm(prev => ({ ...prev, primaryColor: e.target.value }))}
                   className="w-12 h-12 rounded cursor-pointer"
                 />
                 <input
                   type="text"
-                  value={editForm.primaryColor}
-                  onChange={(e) => setEditForm(prev => ({ ...prev, primaryColor: e.target.value }))}
+                  value={teamForm.primaryColor}
+                  onChange={(e) => setTeamForm(prev => ({ ...prev, primaryColor: e.target.value }))}
                   className="input input-bordered flex-1"
                 />
               </div>
@@ -440,14 +523,14 @@ const TeamsTab = () => {
               <div className="flex gap-2">
                 <input
                   type="color"
-                  value={editForm.secondaryColor}
-                  onChange={(e) => setEditForm(prev => ({ ...prev, secondaryColor: e.target.value }))}
+                  value={teamForm.secondaryColor}
+                  onChange={(e) => setTeamForm(prev => ({ ...prev, secondaryColor: e.target.value }))}
                   className="w-12 h-12 rounded cursor-pointer"
                 />
                 <input
                   type="text"
-                  value={editForm.secondaryColor}
-                  onChange={(e) => setEditForm(prev => ({ ...prev, secondaryColor: e.target.value }))}
+                  value={teamForm.secondaryColor}
+                  onChange={(e) => setTeamForm(prev => ({ ...prev, secondaryColor: e.target.value }))}
                   className="input input-bordered flex-1"
                 />
               </div>
@@ -455,15 +538,15 @@ const TeamsTab = () => {
           </div>
 
           <div className="flex justify-end gap-2 pt-4">
-            <button type="button" onClick={() => setShowEditModal(false)} className="btn btn-ghost">
+            <button type="button" onClick={() => setShowModal(false)} className="btn btn-ghost">
               Cancel
             </button>
             <button 
               type="submit" 
               className="btn btn-primary"
-              disabled={updateTeamMutation.isPending}
+              disabled={createTeamMutation.isPending || updateTeamMutation.isPending}
             >
-              {updateTeamMutation.isPending ? <span className="loading loading-spinner loading-sm"></span> : 'Save Changes'}
+              {(createTeamMutation.isPending || updateTeamMutation.isPending) ? <span className="loading loading-spinner loading-sm"></span> : (selectedTeam ? 'Save Changes' : 'Create Team')}
             </button>
           </div>
         </form>
