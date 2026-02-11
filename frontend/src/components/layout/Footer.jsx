@@ -27,7 +27,7 @@ const Footer = () => {
               </div>
             </div>
             <p className="text-xs sm:text-sm text-gray-400 max-w-md">
-              The ultimate cricket battleground for AOT College hostels. 
+              The ultimate cricket battleground for AOT Boys Hostel. 
               Where legends are born and rivalries are forged.
             </p>
           </div>

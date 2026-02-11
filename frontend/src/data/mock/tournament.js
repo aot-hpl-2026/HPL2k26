@@ -7,7 +7,7 @@ export const tournament = {
   shortName: 'HPL',
   year: 2026,
   tagline: 'Where Legends Are Born',
-  description: 'The ultimate cricket battleground for AOT College hostels. Six teams, one trophy, eternal glory.',
+  description: 'The ultimate cricket battleground for AOT Boys Hostel. Six teams, one trophy, eternal glory.',
   logo: '/images/hpl-logo.png',
   venue: 'AOT College Cricket Ground',
   startDate: '2026-01-15',
