@@ -1987,8 +1987,8 @@ const ScoringTab = () => {
         matchState.currentBall + 1
       const overBeingRecorded = endOfOver ? matchState.currentOver : matchState.currentOver
 
-      // Send to server
-      await socketService.sendScoreUpdate(selectedMatch._id, {
+      // Send to server via REST API for reliability
+      await matchesApi.updateScore(selectedMatch._id, {
         over: overBeingRecorded,
         ball: ballBeingRecorded,
         runs: totalBallRuns,

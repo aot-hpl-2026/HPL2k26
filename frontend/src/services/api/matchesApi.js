@@ -130,6 +130,29 @@ export const matchesApi = {
     return result
   },
 
+  // Get live match state
+  getLiveState: async (matchId) => {
+    if (USE_MOCK) return { data: null, success: false }
+    
+    const result = await api.get(`/matches/${matchId}/live`)
+    if (!result.success) {
+      throw new Error(result.error || 'Failed to get live state')
+    }
+    return result
+  },
+
+  // Get FULL live match state (includes detailed stats)
+  getFullLiveState: async (matchId) => {
+    if (USE_MOCK) return { data: null, success: false } // Fallback to basic state if mocked
+    
+    const result = await api.get(`/matches/${matchId}/live-state`)
+    if (!result.success) {
+      // Fallback to basic live state if full state fails
+      return matchesApi.getLiveState(matchId)
+    }
+    return result
+  },
+
   // Update live score (Admin only)
   updateScore: async (matchId, scoreData) => {
     const result = await api.post(`/matches/${matchId}/score`, scoreData)
