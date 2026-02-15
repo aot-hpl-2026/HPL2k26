@@ -1996,7 +1996,12 @@ const ScoringTab = () => {
         extras: extraRuns,
         extraType,
         wicket: isWicket,
-        dismissal,
+        dismissal: isWicket ? {
+            type: dismissal?.type,
+            fielder: typeof dismissal?.fielder === 'object' ? dismissal?.fielder?.name : (dismissal?.fielder || ''),
+            // Joi validation on backend doesn't support 'text' by default unless we add it, preventing DB errors
+            ...(dismissal?.text ? { text: dismissal?.text } : {})
+        } : null,
         striker: matchState.striker?.name,
         nonStriker: matchState.nonStriker?.name,
         bowler: matchState.bowler?.name,
@@ -2130,11 +2135,24 @@ const ScoringTab = () => {
 
   // ==================== HANDLE WICKET ====================
   const handleWicket = (type, fielder = null, runsBeforeWicket = 0) => {
+    // Generate text for local display/state
     const dismissalText = getDismissalText(type, fielder, matchState.bowler)
+    
+    // For API, fielder must be a string (name)
+    // We send two versions: one for local state (with object) and one for API (with string)
+    // But since recordBall updates local state based on input, we need to be careful.
+    
+    // Actually, let's just make fielder a string (name) for both.
+    // The player object isn't strictly needed if we have the name.
+    
     recordBall({ 
       runs: runsBeforeWicket, 
       isWicket: true, 
-      dismissal: { type, fielder, text: dismissalText }
+      dismissal: { 
+        type, 
+        fielder: fielder?.name || '', 
+        text: dismissalText 
+      }
     })
     setShowWicketModal(false)
     setSelectedWicketType(null)
@@ -2142,12 +2160,15 @@ const ScoringTab = () => {
   }
 
   const getDismissalText = (type, fielder, bowler) => {
+    // Fielder can be object (from selection) or string (from state/API)
+    const fielderName = typeof fielder === 'object' ? fielder?.name : (fielder || '')
+    
     switch (type) {
       case 'bowled': return `b ${bowler?.name}`
-      case 'caught': return fielder ? `c ${fielder.name} b ${bowler?.name}` : `c & b ${bowler?.name}`
+      case 'caught': return fielderName ? `c ${fielderName} b ${bowler?.name}` : `c & b ${bowler?.name}`
       case 'lbw': return `lbw b ${bowler?.name}`
-      case 'stumped': return `st ${fielder?.name || '†'} b ${bowler?.name}`
-      case 'runout': return `run out (${fielder?.name || 'direct'})`
+      case 'stumped': return `st ${fielderName || '†'} b ${bowler?.name}`
+      case 'runout': return `run out (${fielderName || 'direct'})`
       case 'hitwicket': return `hit wicket b ${bowler?.name}`
       default: return type
     }

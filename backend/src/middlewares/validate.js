@@ -159,7 +159,8 @@ export const matchSchemas = {
     wicket: Joi.boolean().default(false),
     dismissal: Joi.object({
       type: Joi.string().valid("bowled", "caught", "lbw", "runout", "stumped", "hitwicket", "obstructing"),
-      fielder: Joi.string().max(100).allow("")
+      fielder: Joi.string().max(100).allow(""),
+      text: Joi.string().max(200).allow("").optional()
     }).allow(null)
   })
 };
