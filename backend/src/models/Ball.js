@@ -22,6 +22,8 @@ const ballSchema = new mongoose.Schema(
     extras: { type: Number, default: 0 },
     extraType: { type: String, enum: ['wide', 'noball', 'bye', 'legbye', null] },
     wicket: { type: Boolean, default: false },
+    dismissalType: { type: String, enum: ['bowled', 'caught', 'lbw', 'runout', 'stumped', 'hitwicket', 'retired', 'obstructing', 'timedout', null] },
+    fielderId: { type: mongoose.Schema.Types.ObjectId, ref: "Player" },
     dismissal: { type: mongoose.Schema.Types.Mixed }
   },
   { timestamps: true }

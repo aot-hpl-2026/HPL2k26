@@ -15,12 +15,12 @@ export const derivePlayerStats = async (playerId) => {
     { $match: { strikerId: playerObjectId } },
     {
       $group: {
-        _id: "$matchId",
+        _id: "$match",
         runs: { $sum: "$runsOffBat" },
         balls: { $sum: 1 },
         fours: { $sum: { $cond: [{ $eq: ["$runsOffBat", 4] }, 1, 0] } },
         sixes: { $sum: { $cond: [{ $eq: ["$runsOffBat", 6] }, 1, 0] } },
-        dismissed: { $max: { $cond: [{ $and: [{ $eq: ["$wicket", true] }, { $ne: ["$dismissalType", "run out (non-striker)"] }] }, 1, 0] } }
+        dismissed: { $max: { $cond: [{ $and: [{ $eq: ["$wicket", true] }, { $ne: ["$dismissalType", "runout"] }] }, 1, 0] } }
       }
     },
     {
@@ -43,10 +43,10 @@ export const derivePlayerStats = async (playerId) => {
     { $match: { bowlerId: playerObjectId } },
     {
       $group: {
-        _id: "$matchId",
+        _id: "$match",
         runs: { $sum: { $add: ["$runsOffBat", { $ifNull: ["$extras", 0] }] } },
         balls: { $sum: 1 },
-        wickets: { $sum: { $cond: [{ $and: [{ $eq: ["$wicket", true] }, { $in: ["$dismissalType", ["bowled", "caught", "lbw", "stumped", "hit wicket"]] }] }, 1, 0] } },
+        wickets: { $sum: { $cond: [{ $and: [{ $eq: ["$wicket", true] }, { $in: ["$dismissalType", ["bowled", "caught", "lbw", "stumped", "hitwicket"]] }] }, 1, 0] } },
         dots: { $sum: { $cond: [{ $eq: [{ $add: ["$runsOffBat", { $ifNull: ["$extras", 0] }] }, 0] }, 1, 0] } }
       }
     },
@@ -67,20 +67,14 @@ export const derivePlayerStats = async (playerId) => {
   // Fielding aggregation
   const fieldingPipeline = [
     { 
-      $match: { 
-        $or: [
-          { catcherId: playerObjectId },
-          { $and: [{ dismissalType: "run out" }, { fielderId: playerObjectId }] },
-          { $and: [{ dismissalType: "stumped" }, { stumpedById: playerObjectId }] }
-        ]
-      } 
+      $match: { fielderId: playerObjectId }
     },
     {
       $group: {
         _id: null,
-        catches: { $sum: { $cond: [{ $eq: ["$catcherId", playerObjectId] }, 1, 0] } },
-        runOuts: { $sum: { $cond: [{ $and: [{ $eq: ["$dismissalType", "run out"] }, { $eq: ["$fielderId", playerObjectId] }] }, 1, 0] } },
-        stumpings: { $sum: { $cond: [{ $and: [{ $eq: ["$dismissalType", "stumped"] }, { $eq: ["$stumpedById", playerObjectId] }] }, 1, 0] } }
+        catches: { $sum: { $cond: [{ $eq: ["$dismissalType", "caught"] }, 1, 0] } },
+        runOuts: { $sum: { $cond: [{ $eq: ["$dismissalType", "runout"] }, 1, 0] } },
+        stumpings: { $sum: { $cond: [{ $eq: ["$dismissalType", "stumped"] }, 1, 0] } }
       }
     }
   ];
@@ -209,7 +203,7 @@ export const getTopBowlers = async (limit = 5) => {
     {
       $group: {
         _id: "$bowlerId",
-        wickets: { $sum: { $cond: ["$wicket", 1, 0] } },
+        wickets: { $sum: { $cond: [{ $and: [{ $eq: ["$wicket", true] }, { $in: ["$dismissalType", ["bowled", "caught", "lbw", "stumped", "hitwicket"]] }] }, 1, 0] } },
         runs: { $sum: { $add: ["$runsOffBat", { $ifNull: ["$extras", 0] }] } },
         balls: { $sum: 1 }
       }

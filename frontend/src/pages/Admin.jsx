@@ -2000,7 +2000,8 @@ const ScoringTab = () => {
             type: dismissal?.type,
             fielder: typeof dismissal?.fielder === 'object' ? dismissal?.fielder?.name : (dismissal?.fielder || ''),
             // Joi validation on backend doesn't support 'text' by default unless we add it, preventing DB errors
-            ...(dismissal?.text ? { text: dismissal?.text } : {})
+            ...(dismissal?.text ? { text: dismissal?.text } : {}),
+            ...(dismissal?.fielderId ? { fielderId: dismissal.fielderId } : {})
         } : null,
         striker: matchState.striker?.name,
         nonStriker: matchState.nonStriker?.name,
@@ -2138,19 +2139,23 @@ const ScoringTab = () => {
     // Generate text for local display/state
     const dismissalText = getDismissalText(type, fielder, matchState.bowler)
     
-    // For API, fielder must be a string (name)
-    // We send two versions: one for local state (with object) and one for API (with string)
-    // But since recordBall updates local state based on input, we need to be careful.
+    // Determine effective fielder ID for stats
+    // For Caught & Bowled (type='caught' and fielder=null), the fielder is the bowler
+    let effectiveFielderId = fielder?._id || null
+    let effectiveFielderName = fielder?.name || ''
     
-    // Actually, let's just make fielder a string (name) for both.
-    // The player object isn't strictly needed if we have the name.
-    
+    if (type === 'caught' && !fielder && matchState.bowler) {
+      effectiveFielderId = matchState.bowler._id
+      effectiveFielderName = matchState.bowler.name
+    }
+
     recordBall({ 
       runs: runsBeforeWicket, 
       isWicket: true, 
       dismissal: { 
         type, 
-        fielder: fielder?.name || '', 
+        fielder: effectiveFielderName, 
+        fielderId: effectiveFielderId,
         text: dismissalText 
       }
     })

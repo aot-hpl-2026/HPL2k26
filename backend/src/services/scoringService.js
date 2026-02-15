@@ -90,7 +90,9 @@ export const recordBall = async (matchId, payload) => {
         extras: payload.extras || 0,
         extraType: payload.extraType,
         wicket: payload.wicket || false,
-        dismissal: payload.dismissal
+        dismissal: payload.dismissal,
+        dismissalType: payload.dismissal?.type || null,
+        fielderId: payload.dismissal?.fielderId || null
       }
     ], { session });
 
