@@ -564,7 +564,10 @@ export const completeMatch = asyncHandler(async (req, res) => {
   
   // Clean up Redis cache
   try {
-    await deleteLiveData(matchId);
+    const { redis } = getRuntime();
+    if (redis?.pubClient) {
+      await deleteLiveData(redis.pubClient, matchId);
+    }
     console.log(`Cache cleared for match ${matchId}`);
   } catch (cacheError) {
     console.error("Error clearing cache:", cacheError);
