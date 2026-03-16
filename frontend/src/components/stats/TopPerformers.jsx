@@ -14,6 +14,20 @@ const TopPerformers = ({ title, players, statKey, statLabel }) => {
     return player[lastKey] ?? 0
   }
 
+  // Normalize team field from API shapes (string id/name or populated object).
+  const getTeamLabel = (player) => {
+    const team = player.team ?? player.teamId
+
+    if (!team) return 'Unknown'
+    if (typeof team === 'string') return team.replace(/-/g, ' ')
+
+    if (typeof team === 'object') {
+      return team.shortName || team.name || team.id || team._id || 'Unknown'
+    }
+
+    return 'Unknown'
+  }
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
@@ -27,8 +41,7 @@ const TopPerformers = ({ title, players, statKey, statLabel }) => {
       <div className="divide-y divide-base-200">
         {players.map((player, index) => {
           const statValue = getStatValue(player, statKey)
-          // Handle both teamId (old format) and team (new format)
-          const teamName = player.team || player.teamId || 'Unknown'
+          const teamName = getTeamLabel(player)
           
           return (
             <Link
@@ -57,7 +70,7 @@ const TopPerformers = ({ title, players, statKey, statLabel }) => {
                 <div>
                   <p className="font-medium text-base-content">{player.name || 'Unknown'}</p>
                   <p className="text-xs text-base-content/50">
-                    {typeof teamName === 'string' ? teamName.replace(/-/g, ' ') : teamName}
+                    {teamName}
                   </p>
                 </div>
               </div>
