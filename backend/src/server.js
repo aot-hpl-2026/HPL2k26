@@ -28,12 +28,26 @@ app.use(helmet({
 }));
 
 // CORS configuration
-app.use(cors({ 
-  origin: env.corsOrigin === "*" ? true : env.corsOrigin.split(","),
+const allowedOrigins = env.corsOrigin === "*"
+  ? true
+  : env.corsOrigin.split(",").map(o => o.trim());
+
+const corsOptions = {
+  origin: allowedOrigins,
   credentials: true,
   methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
-  allowedHeaders: ["Content-Type", "Authorization"]
-}));
+  allowedHeaders: ["Content-Type", "Authorization"],
+  exposedHeaders: ["Content-Range", "X-Content-Range"],
+  maxAge: 600, // Cache preflight for 10 minutes
+  optionsSuccessStatus: 200
+};
+
+console.log("CORS configuration:", {
+  allowedOrigins: allowedOrigins === true ? "*" : allowedOrigins,
+  credentials: corsOptions.credentials
+});
+
+app.use(cors(corsOptions));
 
 // Compression for responses
 app.use(compression());
@@ -50,8 +64,8 @@ app.use("/api", apiLimiter);
 
 // Health check endpoint (no rate limiting)
 app.get("/health", (req, res) => {
-  res.status(200).json({ 
-    status: "ok", 
+  res.status(200).json({
+    status: "ok",
     timestamp: new Date().toISOString(),
     uptime: process.uptime()
   });
@@ -74,19 +88,19 @@ let isShuttingDown = false;
 const gracefulShutdown = async (signal) => {
   if (isShuttingDown) return;
   isShuttingDown = true;
-  
+
   console.log(`\n${signal} received. Starting graceful shutdown...`);
-  
+
   // Stop accepting new connections
   server.close(async () => {
     console.log("HTTP server closed");
-    
+
     try {
       // Close database connections
       const mongoose = await import("mongoose");
       await mongoose.default.connection.close();
       console.log("MongoDB connection closed");
-      
+
       console.log("Graceful shutdown completed");
       process.exit(0);
     } catch (err) {
@@ -94,7 +108,7 @@ const gracefulShutdown = async (signal) => {
       process.exit(1);
     }
   });
-  
+
   // Force shutdown after 30 seconds
   setTimeout(() => {
     console.error("Forced shutdown after timeout");
@@ -105,7 +119,7 @@ const gracefulShutdown = async (signal) => {
 const start = async () => {
   try {
     console.log(`Starting HPL Backend in ${env.nodeEnv} mode...`);
-    
+
     console.log("Connecting to MongoDB...");
     await connectDb();
     console.log("MongoDB connected!");
