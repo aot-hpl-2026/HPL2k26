@@ -88,7 +88,7 @@ export const playerSchemas = {
   create: Joi.object({
     teamId: Joi.string().pattern(/^[a-f\d]{24}$/i).required(),
     name: Joi.string().min(2).max(100).required().trim(),
-    jerseyNumber: Joi.number().integer().min(0).max(99),
+    jerseyNumber: Joi.number().integer().min(0).max(999),
     role: Joi.string().valid("Batsman", "Bowler", "All-Rounder", "Wicket-Keeper").default("Batsman"),
     battingStyle: Joi.string().valid("Right-hand", "Left-hand").default("Right-hand"),
     bowlingStyle: Joi.string().max(50).allow("").default("None"),
@@ -99,7 +99,7 @@ export const playerSchemas = {
 
   update: Joi.object({
     name: Joi.string().min(2).max(100).trim(),
-    jerseyNumber: Joi.number().integer().min(0).max(99),
+    jerseyNumber: Joi.number().integer().min(0).max(999),
     role: Joi.string().valid("Batsman", "Bowler", "All-Rounder", "Wicket-Keeper"),
     battingStyle: Joi.string().valid("Right-hand", "Left-hand"),
     bowlingStyle: Joi.string().max(50).allow(""),

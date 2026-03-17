@@ -73,7 +73,7 @@ const Player = () => {
               className="relative"
             >
               <img
-                src={getAvatarUrl(player.name)}
+                src={player.imageUrl || getAvatarUrl(player.name)}
                 alt={player.name}
                 className="w-40 h-40 rounded-full object-cover border-4 border-white shadow-xl"
               />
