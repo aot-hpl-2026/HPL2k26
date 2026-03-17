@@ -50,7 +50,13 @@ const Team = () => {
   }
 
   const team = teamData.data
-  const players = playersData?.data || []
+  const players = (playersData?.data || []).sort((a, b) => {
+    // Captain comes first
+    if (a.isCaptain && !b.isCaptain) return -1
+    if (!a.isCaptain && b.isCaptain) return 1
+    // Then sort by jersey number ascending
+    return (a.jerseyNumber || 0) - (b.jerseyNumber || 0)
+  })
   const matches = matchesData?.data || []
 
   const winLossData = [
