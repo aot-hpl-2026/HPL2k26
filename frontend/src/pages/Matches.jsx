@@ -15,14 +15,25 @@ const Matches = () => {
 
   const matches = allMatches?.data || []
 
-  const filteredMatches = filter === 'all' 
-    ? matches 
+  const statusOrder = { live: 0, scheduled: 1, completed: 2 }
+
+  const filteredMatches = (filter === 'all'
+    ? matches
     : matches.filter(m => m.status === filter)
+  ).slice().sort((a, b) => {
+    const statusDiff = (statusOrder[a.status] ?? 1) - (statusOrder[b.status] ?? 1)
+    if (statusDiff !== 0) return statusDiff
+    // Scheduled: ascending (first match first)
+    if (a.status === 'scheduled') return new Date(a.scheduledAt) - new Date(b.scheduledAt)
+    // Completed: descending (last match first)
+    if (a.status === 'completed') return new Date(b.scheduledAt) - new Date(a.scheduledAt)
+    return 0
+  })
 
   const filters = [
     { id: 'all', label: 'All Matches' },
     { id: 'live', label: '🔴 Live' },
-    { id: 'upcoming', label: 'Upcoming' },
+    { id: 'scheduled', label: 'Upcoming' },
     { id: 'completed', label: 'Completed' },
   ]
 
