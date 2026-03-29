@@ -1,14 +1,25 @@
 // Utility functions for HPL 2026
 
-// Format date to readable string
+// Format date to readable string (always in IST)
 export const formatDate = (dateString) => {
-  const options = { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' }
+  const options = { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric', timeZone: 'Asia/Kolkata' }
   return new Date(dateString).toLocaleDateString('en-IN', options)
 }
 
-// Format time to readable string
+// Format time to readable string (always in IST)
 export const formatTime = (timeString) => {
-  const [hours, minutes] = timeString.split(':')
+  if (!timeString) return ''
+  // Handle full ISO date strings or Date objects
+  if (timeString instanceof Date || String(timeString).includes('T') || String(timeString).includes('Z')) {
+    return new Date(timeString).toLocaleTimeString('en-IN', {
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true,
+      timeZone: 'Asia/Kolkata'
+    })
+  }
+  // Handle plain "HH:MM" time strings (treated as IST)
+  const [hours, minutes] = String(timeString).split(':')
   const hour = parseInt(hours)
   const ampm = hour >= 12 ? 'PM' : 'AM'
   const formattedHour = hour % 12 || 12

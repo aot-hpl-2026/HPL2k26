@@ -1145,7 +1145,12 @@ const MatchesTab = ({ onGoToScoring }) => {
 
   const handleCreateMatch = (e) => {
     e.preventDefault()
-    createMatchMutation.mutate(form)
+    const formData = {
+      ...form,
+      // Treat datetime-local input as IST (UTC+5:30) before sending to backend
+      scheduledAt: form.scheduledAt ? new Date(form.scheduledAt + '+05:30').toISOString() : form.scheduledAt
+    }
+    createMatchMutation.mutate(formData)
   }
 
   const handleStartMatch = (match) => {
@@ -1233,10 +1238,10 @@ const MatchesTab = ({ onGoToScoring }) => {
                 <div className="flex items-center gap-4">
                   <div className="text-right">
                     <p className="text-sm text-base-content/60">
-                      {new Date(match.scheduledAt).toLocaleDateString()}
+                      {new Date(match.scheduledAt).toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata' })}
                     </p>
                     <p className="text-sm font-medium">
-                      {new Date(match.scheduledAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      {new Date(match.scheduledAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Kolkata' })}
                     </p>
                   </div>
                   {getStatusBadge(match.status)}
