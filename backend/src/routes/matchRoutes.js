@@ -15,10 +15,11 @@ import {
   startInnings, 
   changeBowler, 
   newBatsman, 
-  liveMatches, 
-  upcomingMatches, 
-  completedMatches, 
-  matchesByTeam 
+  liveMatches,
+  upcomingMatches,
+  completedMatches,
+  matchesByTeam,
+  undoBall
 } from "../controllers/matchController.js";
 import { requireAuth } from "../middlewares/auth.js";
 import { validateObjectId } from "../middlewares/validateObjectId.js";
@@ -44,6 +45,7 @@ router.delete("/:matchId", requireAuth, validateObjectId("matchId"), remove);
 
 // Live scoring routes (authenticated + rate limited)
 router.post("/:matchId/score", requireAuth, validateObjectId("matchId"), scoringLimiter, validate(matchSchemas.score), score);
+router.post("/:matchId/undo", requireAuth, validateObjectId("matchId"), undoBall);
 router.post("/:matchId/start-innings", requireAuth, validateObjectId("matchId"), startInnings);
 router.post("/:matchId/end-innings", requireAuth, validateObjectId("matchId"), endInnings);
 router.post("/:matchId/change-bowler", requireAuth, validateObjectId("matchId"), changeBowler);

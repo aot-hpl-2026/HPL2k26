@@ -1,6 +1,6 @@
 import mongoose from "mongoose";
 import { createMatch, updateMatch, getMatches, getMatchById, deleteMatch, getLiveMatches, getUpcomingMatches, getCompletedMatches, getMatchesByTeam } from "../services/matchService.js";
-import { recordBall } from "../services/scoringService.js";
+import { recordBall, undoBall as undoBallService } from "../services/scoringService.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 import { created, ok } from "../config/response.js";
 import Match from "../models/Match.js";
@@ -80,6 +80,26 @@ export const score = asyncHandler(async (req, res) => {
   }
   
   return ok(res, data, "score_recorded");
+});
+
+export const undoBall = asyncHandler(async (req, res) => {
+  const data = await undoBallService(req.params.matchId);
+  const { io, redis } = getRuntime();
+
+  const liveData = buildLiveData(data.match);
+  liveData.undone = true;
+
+  if (redis?.pubClient) {
+    await saveLiveScore(redis.pubClient, req.params.matchId, liveData);
+    await saveLiveState(redis.pubClient, req.params.matchId, liveData);
+  }
+
+  if (io) {
+    io.of("/public").to(req.params.matchId).emit("score:update", liveData);
+    io.of("/public").emit("score:update", liveData);
+  }
+
+  return ok(res, data, "ball_undone");
 });
 
 export const getLiveScore = asyncHandler(async (req, res) => {

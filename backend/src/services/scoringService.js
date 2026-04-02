@@ -62,12 +62,28 @@ export const recordBall = async (matchId, payload) => {
     const currentInnings = match.currentInnings || 1;
 
     // Get the next delivery number for this match/innings (auto-increment)
-    const lastBall = await Ball.findOne({ 
-      match: matchId, 
-      innings: currentInnings 
+    const lastBall = await Ball.findOne({
+      match: matchId,
+      innings: currentInnings
     }).sort({ deliveryNumber: -1 }).session(session);
-    
+
     const deliveryNumber = (lastBall?.deliveryNumber || 0) + 1;
+
+    // Snapshot innings state BEFORE this ball so we can restore it on undo
+    const inningsIndex = currentInnings - 1;
+    const inningsBefore = match.innings[inningsIndex] || {};
+    const inningsSnapshot = {
+      score: { ...match.score },
+      runs: inningsBefore.runs || 0,
+      wickets: inningsBefore.wickets || 0,
+      overs: inningsBefore.overs || 0,
+      runRate: inningsBefore.runRate || 0,
+      recentBalls: [...(inningsBefore.recentBalls || [])],
+      currentBatsmen: JSON.parse(JSON.stringify(inningsBefore.currentBatsmen || [])),
+      currentBowler: inningsBefore.currentBowler
+        ? JSON.parse(JSON.stringify(inningsBefore.currentBowler))
+        : null
+    };
 
     const ball = await Ball.create([
       {
@@ -92,7 +108,8 @@ export const recordBall = async (matchId, payload) => {
         wicket: payload.wicket || false,
         dismissal: payload.dismissal,
         dismissalType: payload.dismissal?.type || null,
-        fielderId: payload.dismissal?.fielderId || null
+        fielderId: payload.dismissal?.fielderId || null,
+        inningsSnapshot
       }
     ], { session });
 
@@ -140,9 +157,22 @@ export const recordBall = async (matchId, payload) => {
           if (payload.runsOffBat === 6) innings.currentBatsmen[strikerIdx].sixes += 1;
           if (payload.wicket) innings.currentBatsmen[strikerIdx].isOut = true;
 
-          // Swap strike on odd runs (total runs including extras for wide/no ball)
-          const totalRuns = payload.runsOffBat + (payload.extras || 0);
-          if (totalRuns % 2 === 1) {
+          // Swap strike according to ICC rules:
+          // - Wide: only runs physically run by batsmen (extras minus the 1-run penalty)
+          // - No-ball: only runs off bat (the 1-run penalty doesn't cause rotation)
+          // - Bye / Leg-bye: extras determine rotation
+          // - Normal delivery: runs off bat
+          let runsForRotation;
+          if (payload.extraType === 'wide') {
+            runsForRotation = Math.max(0, (payload.extras || 0) - 1);
+          } else if (payload.extraType === 'noball') {
+            runsForRotation = payload.runsOffBat || 0;
+          } else if (payload.extraType === 'bye' || payload.extraType === 'legbye') {
+            runsForRotation = payload.extras || 0;
+          } else {
+            runsForRotation = payload.runsOffBat || 0;
+          }
+          if (runsForRotation % 2 === 1) {
             innings.currentBatsmen.forEach(b => { b.onStrike = !b.onStrike; });
           }
         }
@@ -184,6 +214,66 @@ export const recordBall = async (matchId, payload) => {
         recentBalls: currentInningsData?.recentBalls || []
       }, 
       ball: ball[0] 
+    };
+  } catch (error) {
+    await session.abortTransaction();
+    throw error;
+  } finally {
+    session.endSession();
+  }
+};
+
+// Undo the last ball — restores match state from the snapshot saved before it
+export const undoBall = async (matchId) => {
+  const session = await mongoose.startSession();
+  session.startTransaction();
+  try {
+    const match = await Match.findById(matchId).session(session);
+    if (!match) throw new ApiError("Match not found", 404);
+    if (match.status !== MATCH_STATUS.LIVE) throw new ApiError("Match not live", 400);
+
+    const currentInnings = match.currentInnings || 1;
+    const inningsIndex = currentInnings - 1;
+
+    // Find the most recent ball for this innings
+    const lastBall = await Ball.findOne({ match: matchId, innings: currentInnings })
+      .sort({ deliveryNumber: -1 })
+      .session(session);
+
+    if (!lastBall) throw new ApiError("No ball to undo", 400);
+    if (!lastBall.inningsSnapshot) throw new ApiError("Cannot undo: no snapshot available for this ball", 400);
+
+    const snap = lastBall.inningsSnapshot;
+    const innings = match.innings[inningsIndex];
+
+    // Restore match score from snapshot
+    match.score = snap.score;
+
+    // Restore innings state from snapshot
+    innings.runs = snap.runs;
+    innings.wickets = snap.wickets;
+    innings.overs = snap.overs;
+    innings.runRate = snap.runRate;
+    innings.recentBalls = snap.recentBalls;
+    innings.currentBatsmen = snap.currentBatsmen;
+    innings.currentBowler = snap.currentBowler;
+
+    // Delete the undone ball
+    await Ball.deleteOne({ _id: lastBall._id }).session(session);
+
+    match.markModified(`innings.${inningsIndex}`);
+    await match.save({ session });
+    await session.commitTransaction();
+
+    const currentInningsData = match.innings[match.currentInnings - 1];
+    return {
+      match: {
+        ...match.toObject(),
+        score: match.score,
+        currentBatsmen: currentInningsData?.currentBatsmen || [],
+        currentBowler: currentInningsData?.currentBowler || null,
+        recentBalls: currentInningsData?.recentBalls || []
+      }
     };
   } catch (error) {
     await session.abortTransaction();

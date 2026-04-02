@@ -200,6 +200,15 @@ export const matchesApi = {
     }
     return result
   },
+
+  // Undo last ball — restores backend state and broadcasts to clients (Admin only)
+  undoBall: async (matchId) => {
+    const result = await api.post(`/matches/${matchId}/undo`, {})
+    if (!result.success) {
+      throw new Error(result.error || 'Failed to undo ball')
+    }
+    return result
+  },
 }
 
 export default matchesApi

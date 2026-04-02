@@ -1993,7 +1993,7 @@ const ScoringTab = () => {
       const overBeingRecorded = endOfOver ? matchState.currentOver : matchState.currentOver
 
       // Send to server via REST API for reliability
-      await matchesApi.updateScore(selectedMatch._id, {
+      const scoreResponse = await matchesApi.updateScore(selectedMatch._id, {
         over: overBeingRecorded,
         ball: ballBeingRecorded,
         runs: totalBallRuns,
@@ -2018,12 +2018,28 @@ const ScoringTab = () => {
         bowlingTeam: matchState.bowlingTeamId
       })
 
+      // Use backend as single source of truth for who is on strike.
+      // Compare backend's striker ID against our current striker to decide swap.
+      // Skip on wicket — new batsman hasn't been selected yet.
+      let finalShouldSwap = shouldSwapBatsmen
+      if (!isWicket && scoreResponse?.data?.match?.currentBatsmen) {
+        const backendBatsmen = scoreResponse.data.match.currentBatsmen
+        const backendStriker = backendBatsmen.find(b => b.onStrike)
+        const backendStrikerId = backendStriker?.player?.toString()
+        const currentStrikerId = getPlayerId(matchState.striker)?.toString()
+        const currentNonStrikerId = getPlayerId(matchState.nonStriker)?.toString()
+        if (backendStrikerId && currentStrikerId && currentNonStrikerId) {
+          // Backend says the non-striker should now be on strike → swap
+          finalShouldSwap = backendStrikerId === currentNonStrikerId
+        }
+      }
+
       // Update match state
       setMatchState(prev => {
         let newStriker = prev.striker
         let newNonStriker = prev.nonStriker
-        
-        if (shouldSwapBatsmen && !isWicket) {
+
+        if (finalShouldSwap && !isWicket) {
           newStriker = prev.nonStriker
           newNonStriker = prev.striker
         }
@@ -2310,17 +2326,39 @@ const ScoringTab = () => {
   }
 
   // ==================== UNDO LAST BALL ====================
-  const handleUndo = () => {
+  const handleUndo = async () => {
     if (ballHistory.length === 0) {
       toast.error('No balls to undo')
       return
     }
-    
-    const previousState = ballHistory[ballHistory.length - 1]
-    setMatchState(previousState)
-    setBallHistory(prev => prev.slice(0, -1))
-    toast.success('Last ball undone')
-    setShowUndoModal(false)
+
+    try {
+      // Tell backend to undo — it restores DB state and broadcasts to all clients
+      const undoResponse = await matchesApi.undoBall(selectedMatch._id)
+
+      // Restore admin local state from history snapshot
+      let previousState = ballHistory[ballHistory.length - 1]
+
+      // Sync striker/nonStriker from backend response to stay in sync with clients
+      if (undoResponse?.data?.match?.currentBatsmen) {
+        const backendBatsmen = undoResponse.data.match.currentBatsmen
+        const backendStriker = backendBatsmen.find(b => b.onStrike)
+        const backendStrikerId = backendStriker?.player?.toString()
+        const prevStrikerId = (previousState.striker?._id || previousState.striker?.id)?.toString()
+        const prevNonStrikerId = (previousState.nonStriker?._id || previousState.nonStriker?.id)?.toString()
+        // If backend says the nonStriker should be on strike, swap in the restored state
+        if (backendStrikerId && prevNonStrikerId && backendStrikerId === prevNonStrikerId) {
+          previousState = { ...previousState, striker: previousState.nonStriker, nonStriker: previousState.striker }
+        }
+      }
+
+      setMatchState(previousState)
+      setBallHistory(prev => prev.slice(0, -1))
+      toast.success('Last ball undone')
+      setShowUndoModal(false)
+    } catch (error) {
+      toast.error('Failed to undo: ' + (error?.message || 'Unknown error'))
+    }
   }
 
   // ==================== END INNINGS ====================

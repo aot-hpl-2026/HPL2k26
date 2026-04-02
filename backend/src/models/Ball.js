@@ -24,7 +24,9 @@ const ballSchema = new mongoose.Schema(
     wicket: { type: Boolean, default: false },
     dismissalType: { type: String, enum: ['bowled', 'caught', 'lbw', 'runout', 'stumped', 'hitwicket', 'retired', 'obstructing', 'timedout', null] },
     fielderId: { type: mongoose.Schema.Types.ObjectId, ref: "Player" },
-    dismissal: { type: mongoose.Schema.Types.Mixed }
+    dismissal: { type: mongoose.Schema.Types.Mixed },
+    // Snapshot of innings state BEFORE this ball — used to restore state on undo
+    inningsSnapshot: { type: mongoose.Schema.Types.Mixed, default: null }
   },
   { timestamps: true }
 );
