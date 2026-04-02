@@ -72,6 +72,11 @@ class SocketService {
         console.log('[Socket] Innings started:', data.matchId)
         this.emit('innings:started', data)
       })
+
+      this.publicSocket.on('match:completed', (data) => {
+        console.log('[Socket] Match completed:', data.matchId)
+        this.emit('match:completed', data)
+      })
     }).catch(err => {
       console.error('[Socket] Failed to load socket.io-client:', err)
     })

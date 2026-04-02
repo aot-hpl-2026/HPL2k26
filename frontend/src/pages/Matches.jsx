@@ -1,17 +1,72 @@
-import { useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useState, useEffect } from 'react'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { motion } from 'framer-motion'
 import { matchesApi } from '../services/api'
+import { socketService } from '../services/socket'
 import { MatchCard } from '../components/match'
 import { SectionHeader, LoadingSpinner, EmptyState, SkeletonCard } from '../components/common'
 
 const Matches = () => {
   const [filter, setFilter] = useState('all')
+  const queryClient = useQueryClient()
 
   const { data: allMatches, isLoading } = useQuery({
     queryKey: ['matches'],
     queryFn: matchesApi.getAllMatches,
   })
+
+  // Listen for real-time match state changes so the page updates without a reload
+  useEffect(() => {
+    socketService.connect()
+
+    const updateMatchInCache = (matchId, changes) => {
+      queryClient.setQueryData(['matches'], (old) => {
+        if (!old?.data) return old
+        return {
+          ...old,
+          data: old.data.map(m =>
+            (m.id === matchId || m._id === matchId)
+              ? { ...m, ...changes }
+              : m
+          )
+        }
+      })
+    }
+
+    // A match just went live — flip its status card immediately
+    const handleMatchStarted = (data) => {
+      const matchId = data.matchId || data.liveData?.matchId
+      if (matchId) updateMatchInCache(matchId, { status: 'live' })
+    }
+
+    // Every score update carries the current status and score — keep the list fresh
+    const handleScoreUpdate = (data) => {
+      if (!data?.matchId) return
+      const changes = { status: data.status }
+      if (data.score) changes.score = data.score
+      updateMatchInCache(data.matchId, changes)
+    }
+
+    // Match finished — flip its status card to completed
+    const handleMatchCompleted = (data) => {
+      if (!data?.matchId) return
+      updateMatchInCache(data.matchId, {
+        status: 'completed',
+        winner: data.winner,
+        result: data.result,
+      })
+    }
+
+    socketService.on('match:started', handleMatchStarted)
+    socketService.on('score:update', handleScoreUpdate)
+    socketService.on('match:completed', handleMatchCompleted)
+
+    return () => {
+      socketService.off('match:started', handleMatchStarted)
+      socketService.off('score:update', handleScoreUpdate)
+      socketService.off('match:completed', handleMatchCompleted)
+    }
+  }, [queryClient])
 
   const matches = allMatches?.data || []
 
