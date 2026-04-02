@@ -2,6 +2,7 @@ import Match from "../models/Match.js";
 import Team from "../models/Team.js";
 import { ApiError } from "../utils/apiError.js";
 import { MATCH_STATUS } from "../config/constants.js";
+import { deleteMatchRelatedData } from "./deleteRelatedData.js";
 
 export const createMatch = async (payload) => {
   const teamA = await Team.findById(payload.teamA);
@@ -79,7 +80,7 @@ export const getLiveMatches = async () => {
 };
 
 export const getUpcomingMatches = async () => {
-  const matches = await Match.find({ status: { $in: [MATCH_STATUS.SCHEDULED, MATCH_STATUS.UPCOMING] } })
+  const matches = await Match.find({ status: MATCH_STATUS.SCHEDULED })
     .populate('teamA', 'name shortName logo primaryColor')
     .populate('teamB', 'name shortName logo primaryColor')
     .sort({ scheduledAt: 1 })
@@ -107,8 +108,6 @@ export const getMatchById = async (matchId) => {
   return addIdFields(match);
 };
 
-
-import { deleteMatchRelatedData } from "./deleteRelatedData.js";
 
 export const deleteMatch = async (matchId) => {
   // Delete related data first

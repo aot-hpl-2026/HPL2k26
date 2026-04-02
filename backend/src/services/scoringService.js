@@ -17,7 +17,10 @@ const buildScore = (current, ballInput, isLegalDelivery = true) => {
   }
   
   const totalRuns = (current?.runs ?? 0) + runs;
-  const runRate = newOvers > 0 ? Number((totalRuns / newOvers).toFixed(2)) : 0;
+  // newOvers is in cricket notation (e.g. 1.2 = 1 over + 2 balls = 8 balls total).
+  // Convert to actual decimal overs before dividing to get correct run rate.
+  const actualOvers = newOvers > 0 ? Math.floor(newOvers) + ((newOvers % 1) * 10) / 6 : 0;
+  const runRate = actualOvers > 0 ? Number((totalRuns / actualOvers).toFixed(2)) : 0;
 
   return {
     runs: totalRuns,
@@ -120,7 +123,6 @@ export const recordBall = async (matchId, payload) => {
     match.score = buildScore(match.score, payload, isLegalDelivery);
 
     // Update current innings
-    const inningsIndex = match.currentInnings - 1;
     if (match.innings[inningsIndex]) {
       const innings = match.innings[inningsIndex];
       innings.runs = match.score.runs;
@@ -131,9 +133,6 @@ export const recordBall = async (matchId, payload) => {
       // Add ball to recent balls
       const ballDisplay = getBallDisplay(payload);
       innings.recentBalls = [...(innings.recentBalls || []).slice(-11), ballDisplay];
-
-      // Determine if this is a legal delivery (not wide or no ball)
-      const isLegalDelivery = !payload.extraType || (payload.extraType !== 'wide' && payload.extraType !== 'noball');
       
       // Update current batsman stats
       if (innings.currentBatsmen && innings.currentBatsmen.length > 0) {
@@ -192,9 +191,10 @@ export const recordBall = async (matchId, payload) => {
                               Math.round((innings.currentBowler.overs % 1) * 10) + 1;
           innings.currentBowler.overs = Math.floor(bowlerBalls / 6) + (bowlerBalls % 6) / 10;
         }
-        // Calculate economy
+        // Calculate economy — overs is cricket notation (e.g. 1.2 = 8 balls), convert to actual decimal first
         if (innings.currentBowler.overs > 0) {
-          innings.currentBowler.economy = Number((innings.currentBowler.runs / innings.currentBowler.overs).toFixed(2));
+          const bowlerActualOvers = Math.floor(innings.currentBowler.overs) + ((innings.currentBowler.overs % 1) * 10) / 6;
+          innings.currentBowler.economy = Number((innings.currentBowler.runs / bowlerActualOvers).toFixed(2));
         }
       }
     }

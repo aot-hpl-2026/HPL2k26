@@ -127,9 +127,10 @@ export const updatePlayerStats = async (playerId, statsUpdate) => {
   }
   if (statsUpdate.bowling) {
     player.stats.bowling = { ...player.stats.bowling.toObject(), ...statsUpdate.bowling };
-    // Calculate economy and average
-    player.stats.bowling.economy = player.stats.bowling.overs > 0 
-      ? Number((player.stats.bowling.runs / player.stats.bowling.overs).toFixed(2)) : 0;
+    // Calculate economy — overs stored as cricket notation (e.g. 1.2 = 8 balls), use balls for accuracy
+    const bowlerBalls = Math.floor(player.stats.bowling.overs) * 6 + Math.round((player.stats.bowling.overs % 1) * 10);
+    player.stats.bowling.economy = bowlerBalls > 0
+      ? Number(((player.stats.bowling.runs * 6) / bowlerBalls).toFixed(2)) : 0;
     player.stats.bowling.average = player.stats.bowling.wickets > 0 
       ? Number((player.stats.bowling.runs / player.stats.bowling.wickets).toFixed(2)) : 0;
   }

@@ -594,15 +594,15 @@ export const completeMatch = asyncHandler(async (req, res) => {
   }
   
   // Broadcast match completion via socket
-  const runtime = getRuntime();
-  if (runtime.publicIO) {
-    runtime.publicIO.to(`match:${matchId}`).emit("match:completed", {
+  const { io } = getRuntime();
+  if (io) {
+    io.of("/public").to(matchId).emit("match:completed", {
       matchId,
-      status: "completed",
+      status: MATCH_STATUS.COMPLETED,
       winner: match.winner,
       result: match.result,
-      team1: match.team1,
-      team2: match.team2,
+      teamA: match.teamA,
+      teamB: match.teamB,
       innings: match.innings
     });
   }

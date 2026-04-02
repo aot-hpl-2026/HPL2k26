@@ -3,6 +3,7 @@ import Player from "../models/Player.js";
 import Team from "../models/Team.js";
 import Match from "../models/Match.js";
 import mongoose from "mongoose";
+import { MATCH_STATUS } from "../config/constants.js";
 
 // Comprehensive player stats derivation from Ball collection
 export const derivePlayerStats = async (playerId) => {
@@ -17,7 +18,8 @@ export const derivePlayerStats = async (playerId) => {
       $group: {
         _id: "$match",
         runs: { $sum: "$runsOffBat" },
-        balls: { $sum: 1 },
+        // Wides are not balls faced by the batsman
+        balls: { $sum: { $cond: [{ $eq: ["$extraType", "wide"] }, 0, 1] } },
         fours: { $sum: { $cond: [{ $eq: ["$runsOffBat", 4] }, 1, 0] } },
         sixes: { $sum: { $cond: [{ $eq: ["$runsOffBat", 6] }, 1, 0] } },
         dismissed: { $max: { $cond: [{ $and: [{ $eq: ["$wicket", true] }, { $ne: ["$dismissalType", "runout"] }] }, 1, 0] } }
@@ -44,8 +46,14 @@ export const derivePlayerStats = async (playerId) => {
     {
       $group: {
         _id: "$match",
-        runs: { $sum: { $add: ["$runsOffBat", { $ifNull: ["$extras", 0] }] } },
-        balls: { $sum: 1 },
+        // Byes and leg-byes are not charged to the bowler
+        runs: { $sum: { $cond: [
+          { $in: ["$extraType", ["bye", "legbye"]] },
+          0,
+          { $add: ["$runsOffBat", { $ifNull: ["$extras", 0] }] }
+        ] } },
+        // Wides and no-balls are not legal deliveries (don't count toward overs)
+        balls: { $sum: { $cond: [{ $in: ["$extraType", ["wide", "noball"]] }, 0, 1] } },
         wickets: { $sum: { $cond: [{ $and: [{ $eq: ["$wicket", true] }, { $in: ["$dismissalType", ["bowled", "caught", "lbw", "stumped", "hitwicket"]] }] }, 1, 0] } },
         dots: { $sum: { $cond: [{ $eq: [{ $add: ["$runsOffBat", { $ifNull: ["$extras", 0] }] }, 0] }, 1, 0] } }
       }
@@ -204,8 +212,13 @@ export const getTopBowlers = async (limit = 5) => {
       $group: {
         _id: "$bowlerId",
         wickets: { $sum: { $cond: [{ $and: [{ $eq: ["$wicket", true] }, { $in: ["$dismissalType", ["bowled", "caught", "lbw", "stumped", "hitwicket"]] }] }, 1, 0] } },
-        runs: { $sum: { $add: ["$runsOffBat", { $ifNull: ["$extras", 0] }] } },
-        balls: { $sum: 1 }
+        // Byes and leg-byes not charged to bowler; wides/no-balls not legal deliveries
+        runs: { $sum: { $cond: [
+          { $in: ["$extraType", ["bye", "legbye"]] },
+          0,
+          { $add: ["$runsOffBat", { $ifNull: ["$extras", 0] }] }
+        ] } },
+        balls: { $sum: { $cond: [{ $in: ["$extraType", ["wide", "noball"]] }, 0, 1] } }
       }
     },
     { $sort: { wickets: -1, runs: 1 } },
@@ -246,7 +259,7 @@ export const updateTeamStatsOnMatchComplete = async (matchId) => {
     .populate('teamB')
     .populate('winner');
   
-  if (!match || match.status !== 'completed') {
+  if (!match || match.status !== MATCH_STATUS.COMPLETED) {
     console.log('[Stats] Match not found or not completed:', matchId);
     return;
   }
