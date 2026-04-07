@@ -37,11 +37,7 @@ export const updateMatch = async (matchId, payload, session = null) => {
   if (payload.overs !== undefined) updateData.overs = payload.overs;
   if (payload.toss !== undefined) updateData.toss = payload.toss;
   if (payload.currentInnings !== undefined) updateData.currentInnings = payload.currentInnings;
-  if (payload.score !== undefined) updateData.score = payload.score;
   if (payload.innings !== undefined) updateData.innings = payload.innings;
-  if (payload.currentBatsmen !== undefined) updateData.currentBatsmen = payload.currentBatsmen;
-  if (payload.currentBowler !== undefined) updateData.currentBowler = payload.currentBowler;
-  if (payload.recentBalls !== undefined) updateData.recentBalls = payload.recentBalls;
 
   const match = await Match.findByIdAndUpdate(matchId, updateData, options);
   if (!match) throw new ApiError("Match not found", 404);

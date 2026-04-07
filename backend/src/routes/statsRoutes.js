@@ -9,7 +9,7 @@ router.get("/top-batsmen", topBatsmen);
 router.get("/top-bowlers", topBowlers);
 router.get("/players/:playerId", validateObjectId("playerId"), playerStats);
 
-// Admin route to recalculate all player stats from Ball collection
+// Admin route to recalculate all player stats from match innings data
 router.post("/recalculate", requireAuth, recalculateAllPlayerStats);
 
 export default router;

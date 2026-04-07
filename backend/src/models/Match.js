@@ -1,40 +1,48 @@
 import mongoose from "mongoose";
 import { MATCH_STATUS } from "../config/constants.js";
 
-const playerScoreSchema = new mongoose.Schema({
+const batsmanEntrySchema = new mongoose.Schema({
   player: { type: mongoose.Schema.Types.ObjectId, ref: "Player" },
   name: { type: String },
-  runs: { type: Number, default: 0 },
-  balls: { type: Number, default: 0 },
+  ones: { type: Number, default: 0 },
+  twos: { type: Number, default: 0 },
+  threes: { type: Number, default: 0 },
   fours: { type: Number, default: 0 },
+  fives: { type: Number, default: 0 },
   sixes: { type: Number, default: 0 },
+  balls: { type: Number, default: 0 },
+  runs: { type: Number, default: 0 },
   isOut: { type: Boolean, default: false },
-  dismissal: { type: String },
-  onStrike: { type: Boolean, default: false }
+  dismissalType: { type: String, enum: ['caught', 'bowled', 'lbw', 'run_out', null], default: null },
+  bowler: { type: mongoose.Schema.Types.ObjectId, ref: "Player", default: null },
+  fielder: { type: mongoose.Schema.Types.ObjectId, ref: "Player", default: null },
+  dismissal: { type: String, default: null }
 }, { _id: false });
 
-const bowlerScoreSchema = new mongoose.Schema({
+const bowlerEntrySchema = new mongoose.Schema({
   player: { type: mongoose.Schema.Types.ObjectId, ref: "Player" },
   name: { type: String },
   overs: { type: Number, default: 0 },
-  maidens: { type: Number, default: 0 },
-  runs: { type: Number, default: 0 },
   wickets: { type: Number, default: 0 },
+  wides: { type: Number, default: 0 },
+  noBalls: { type: Number, default: 0 },
+  runsPerOver: [{ type: Number }],
+  runs: { type: Number, default: 0 },
   economy: { type: Number, default: 0 }
 }, { _id: false });
 
 const inningsSchema = new mongoose.Schema({
   battingTeam: { type: mongoose.Schema.Types.ObjectId, ref: "Team" },
   bowlingTeam: { type: mongoose.Schema.Types.ObjectId, ref: "Team" },
+  batting: [batsmanEntrySchema],
+  bowling: [bowlerEntrySchema],
   runs: { type: Number, default: 0 },
   wickets: { type: Number, default: 0 },
   overs: { type: Number, default: 0 },
-  runRate: { type: Number, default: 0 },
-  batting: [playerScoreSchema],
-  bowling: [bowlerScoreSchema],
-  currentBatsmen: [playerScoreSchema],
-  currentBowler: bowlerScoreSchema,
-  recentBalls: [{ type: String }]
+  extras: {
+    wides: { type: Number, default: 0 },
+    noBalls: { type: Number, default: 0 }
+  }
 }, { _id: false });
 
 const matchSchema = new mongoose.Schema(
@@ -52,19 +60,8 @@ const matchSchema = new mongoose.Schema(
       winner: { type: mongoose.Schema.Types.ObjectId, ref: "Team" },
       decision: { type: String, enum: ["bat", "bowl"] }
     },
-    currentInnings: { type: Number, default: 1 },
-    innings: [inningsSchema],
-    // Current score (active innings)
-    score: {
-      runs: { type: Number, default: 0 },
-      wickets: { type: Number, default: 0 },
-      overs: { type: Number, default: 0 },
-      runRate: { type: Number, default: 0 }
-    },
-    // Current batsmen and bowler for live display
-    currentBatsmen: [playerScoreSchema],
-    currentBowler: bowlerScoreSchema,
-    recentBalls: [{ type: String }]
+    currentInnings: { type: Number, default: 0 },
+    innings: [inningsSchema]
   },
   { timestamps: true }
 );
@@ -72,12 +69,10 @@ const matchSchema = new mongoose.Schema(
 matchSchema.index({ scheduledAt: 1 });
 matchSchema.index({ status: 1 });
 
-// Virtual for id
 matchSchema.virtual('id').get(function() {
   return this._id.toHexString();
 });
 
-// Virtuals for team1/team2 (alias for teamA/teamB)
 matchSchema.virtual('team1', {
   ref: 'Team',
   localField: 'teamA',

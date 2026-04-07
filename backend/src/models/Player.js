@@ -27,8 +27,7 @@ const bowlingStatsSchema = new mongoose.Schema({
 
 const fieldingStatsSchema = new mongoose.Schema({
   catches: { type: Number, default: 0 },
-  runOuts: { type: Number, default: 0 },
-  stumpings: { type: Number, default: 0 }
+  runOuts: { type: Number, default: 0 }
 }, { _id: false });
 
 const playerStatsSchema = new mongoose.Schema({

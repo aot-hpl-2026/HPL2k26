@@ -1,22 +1,10 @@
-import mongoose from "mongoose";
 import { createMatch, updateMatch, getMatches, getMatchById, deleteMatch, getLiveMatches, getUpcomingMatches, getCompletedMatches, getMatchesByTeam } from "../services/matchService.js";
-import { recordBall, undoBall as undoBallService } from "../services/scoringService.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 import { created, ok } from "../config/response.js";
 import Match from "../models/Match.js";
 import { MATCH_STATUS } from "../config/constants.js";
-import { 
-  saveLiveScore, 
-  getLiveScore as getCachedLiveScore,
-  saveLiveState,
-  getLiveState,
-  saveScoringState,
-  getScoringState,
-  buildLiveData,
-  deleteLiveData
-} from "../services/liveScoreCache.js";
-import { getRuntime } from "../services/runtime.js";
-import { updateAllStatsOnMatchComplete, updatePlayerStatsAfterInnings } from "../services/statsService.js";
+import { updateAllStatsOnMatchComplete } from "../services/statsService.js";
+import { ApiError } from "../utils/apiError.js";
 
 export const create = asyncHandler(async (req, res) => {
   const data = await createMatch(req.body);
@@ -58,554 +46,168 @@ export const getById = asyncHandler(async (req, res) => {
   return ok(res, data, "match");
 });
 
-export const score = asyncHandler(async (req, res) => {
-  const data = await recordBall(req.params.matchId, req.body);
-  const { io, redis } = getRuntime();
-
-  // Build comprehensive live data
-  const liveData = buildLiveData(data.match);
-  liveData.lastBall = data.ball;
-
-  if (redis?.pubClient) {
-    // Save both simple score and full live state
-    await saveLiveScore(redis.pubClient, req.params.matchId, liveData);
-    await saveLiveState(redis.pubClient, req.params.matchId, liveData);
-  }
-  
-  if (io) {
-    // Broadcast full live data to all public clients
-    io.of("/public").to(req.params.matchId).emit("score:update", liveData);
-    // Also emit to global for match list updates
-    io.of("/public").emit("score:update", liveData);
-  }
-  
-  return ok(res, data, "score_recorded");
-});
-
-export const undoBall = asyncHandler(async (req, res) => {
-  const data = await undoBallService(req.params.matchId);
-  const { io, redis } = getRuntime();
-
-  const liveData = buildLiveData(data.match);
-  liveData.undone = true;
-
-  if (redis?.pubClient) {
-    await saveLiveScore(redis.pubClient, req.params.matchId, liveData);
-    await saveLiveState(redis.pubClient, req.params.matchId, liveData);
-  }
-
-  if (io) {
-    io.of("/public").to(req.params.matchId).emit("score:update", liveData);
-    io.of("/public").emit("score:update", liveData);
-  }
-
-  return ok(res, data, "ball_undone");
-});
-
-export const getLiveScore = asyncHandler(async (req, res) => {
-  const { redis } = getRuntime();
-  const matchId = req.params.matchId;
-  
-  // Try to get from cache first
-  if (redis?.pubClient) {
-    const cached = await getLiveState(redis.pubClient, matchId);
-    if (cached) return ok(res, cached, "live_score");
-  }
-  
-  // Fall back to database
-  const match = await Match.findById(matchId)
-    .populate('teamA', 'name shortName logo primaryColor')
-    .populate('teamB', 'name shortName logo primaryColor')
-    .lean();
-    
-  if (!match) return ok(res, null, "match_not_found");
-  
-  // Build and cache the live data
-  const liveData = buildLiveData(match);
-  
-  if (redis?.pubClient) {
-    await saveLiveState(redis.pubClient, matchId, liveData);
-  }
-  
-  return ok(res, liveData, "live_score");
-});
-
-// Get full live match state (for viewers after refresh)
-export const getFullLiveState = asyncHandler(async (req, res) => {
-  const { redis } = getRuntime();
-  const matchId = req.params.matchId;
-  
-  // Try cache first
-  if (redis?.pubClient) {
-    const cached = await getLiveState(redis.pubClient, matchId);
-    if (cached) return ok(res, cached, "live_state");
-  }
-  
-  // Build from database
-  const match = await Match.findById(matchId)
-    .populate('teamA', 'name shortName logo primaryColor')
-    .populate('teamB', 'name shortName logo primaryColor')
-    .lean();
-    
-  if (!match) return ok(res, null, "match_not_found");
-  
-  const liveData = buildLiveData(match);
-  
-  // Cache for next time
-  if (redis?.pubClient && match.status === MATCH_STATUS.LIVE) {
-    await saveLiveState(redis.pubClient, matchId, liveData);
-  }
-  
-  return ok(res, liveData, "live_state");
-});
-
-// Save scoring state (admin saving progress)
-export const saveScoringProgress = asyncHandler(async (req, res) => {
-  const { redis } = getRuntime();
-  const matchId = req.params.matchId;
-  const scoringState = req.body;
-  
-  if (redis?.pubClient) {
-    await saveScoringState(redis.pubClient, matchId, scoringState);
-  }
-  
-  return ok(res, { saved: true }, "scoring_state_saved");
-});
-
-// Get scoring state (admin resuming)
-export const getScoringProgress = asyncHandler(async (req, res) => {
-  const { redis } = getRuntime();
-  const matchId = req.params.matchId;
-  
-  // Try cache first
-  let scoringState = null;
-  if (redis?.pubClient) {
-    scoringState = await getScoringState(redis.pubClient, matchId);
-  }
-  
-  // Also get the match from DB to provide current state
-  const match = await Match.findById(matchId)
-    .populate('teamA', 'name shortName logo primaryColor')
-    .populate('teamB', 'name shortName logo primaryColor')
-    .lean();
-    
-  if (!match) return ok(res, null, "match_not_found");
-  
-  return ok(res, { 
-    scoringState, 
-    match,
-    liveData: buildLiveData(match)
-  }, "scoring_progress");
-});
-
 export const remove = asyncHandler(async (req, res) => {
   await deleteMatch(req.params.matchId);
   return ok(res, null, "match_deleted");
 });
 
-// Start innings - saves toss, openers, and bowler
-export const startInnings = asyncHandler(async (req, res) => {
-  const { toss, battingTeamId, bowlingTeamId, openers, bowler } = req.body;
-  const matchId = req.params.matchId;
-  
-  const match = await Match.findById(matchId);
-  if (!match) {
-    return ok(res, null, "match_not_found");
-  }
-  
-  // Save toss information
-  match.toss = {
-    winner: toss.winner,
-    decision: toss.decision
-  };
-  
-  // Create innings
-  const innings = {
-    battingTeam: battingTeamId,
-    bowlingTeam: bowlingTeamId,
-    runs: 0,
-    wickets: 0,
-    overs: 0,
-    runRate: 0,
-    batting: openers.map(opener => ({
-      player: opener._id,
-      name: opener.name,
-      runs: 0,
-      balls: 0,
-      fours: 0,
-      sixes: 0,
-      isOut: false,
-      onStrike: false
-    })),
-    bowling: [{
-      player: bowler._id,
-      name: bowler.name,
-      overs: 0,
-      maidens: 0,
-      runs: 0,
-      wickets: 0,
-      economy: 0
-    }],
-    currentBatsmen: openers.map((opener, idx) => ({
-      player: opener._id,
-      name: opener.name,
-      runs: 0,
-      balls: 0,
-      fours: 0,
-      sixes: 0,
-      isOut: false,
-      onStrike: idx === 0
-    })),
-    currentBowler: {
-      player: bowler._id,
-      name: bowler.name,
-      overs: 0,
-      maidens: 0,
-      runs: 0,
-      wickets: 0,
-      economy: 0
-    },
-    recentBalls: []
-  };
-  
-  match.innings.push(innings);
-  match.currentInnings = match.innings.length;
-  match.status = MATCH_STATUS.LIVE;
-  
-  await match.save();
-  
-  const { io } = getRuntime();
-  if (io) {
-    io.of("/public").emit("match:started", { matchId, match });
-  }
-  
-  return ok(res, match, "innings_started");
-});
-
-// Change bowler
-export const changeBowler = asyncHandler(async (req, res) => {
-  const { bowler, previousBowlerStats } = req.body;
-  const matchId = req.params.matchId;
-  
-  const match = await Match.findById(matchId);
-  if (!match) {
-    return ok(res, null, "match_not_found");
-  }
-  
-  const inningsIndex = match.currentInnings - 1;
-  const innings = match.innings[inningsIndex];
-  
-  if (!innings) {
-    return ok(res, null, "no_active_innings");
-  }
-  
-  // Save previous bowler's stats to bowling array
-  if (previousBowlerStats && innings.currentBowler) {
-    const prevBowlerIdx = innings.bowling.findIndex(b => 
-      b.player?.toString() === innings.currentBowler.player?.toString()
-    );
-    
-    if (prevBowlerIdx >= 0) {
-      innings.bowling[prevBowlerIdx] = {
-        ...innings.bowling[prevBowlerIdx],
-        overs: innings.currentBowler.overs,
-        runs: innings.currentBowler.runs,
-        wickets: innings.currentBowler.wickets,
-        maidens: innings.currentBowler.maidens,
-        economy: innings.currentBowler.economy
-      };
+// Helper to build dismissal text
+const buildDismissalText = (dismissalType, bowlerName, fielderName) => {
+  if (!dismissalType) return null;
+  if (dismissalType === 'caught') {
+    if (fielderName && fielderName !== bowlerName) {
+      return `c ${fielderName} b ${bowlerName}`;
     }
+    return `c & b ${bowlerName || ''}`;
   }
-  
-  // Check if new bowler has bowled before
-  const existingBowlerIdx = innings.bowling.findIndex(b => 
-    b.player?.toString() === bowler._id
-  );
-  
-  let newBowlerStats = {
-    player: bowler._id,
-    name: bowler.name,
-    overs: 0,
-    maidens: 0,
-    runs: 0,
-    wickets: 0,
-    economy: 0
-  };
-  
-  if (existingBowlerIdx >= 0) {
-    // Use existing stats
-    newBowlerStats = innings.bowling[existingBowlerIdx];
-  } else {
-    // Add new bowler to bowling array
-    innings.bowling.push(newBowlerStats);
+  if (dismissalType === 'bowled') return `b ${bowlerName || ''}`;
+  if (dismissalType === 'lbw') return `lbw b ${bowlerName || ''}`;
+  if (dismissalType === 'run_out') {
+    return fielderName ? `run out (${fielderName})` : 'run out';
   }
-  
-  // Set as current bowler
-  innings.currentBowler = newBowlerStats;
-  
-  // Swap strike (end of over)
-  innings.currentBatsmen.forEach(b => { b.onStrike = !b.onStrike; });
-  
-  await match.save();
-  
-  return ok(res, match, "bowler_changed");
-});
+  return dismissalType;
+};
 
-// New batsman after wicket
-export const newBatsman = asyncHandler(async (req, res) => {
-  const { batsman, dismissedBatsmanId } = req.body;
-  const matchId = req.params.matchId;
-  
-  const match = await Match.findById(matchId);
-  if (!match) {
-    return ok(res, null, "match_not_found");
-  }
-  
-  const inningsIndex = match.currentInnings - 1;
-  const innings = match.innings[inningsIndex];
-  
-  if (!innings) {
-    return ok(res, null, "no_active_innings");
-  }
-  
-  // Move dismissed batsman to batting array with final stats
-  const dismissedIdx = innings.currentBatsmen.findIndex(b => b.isOut);
-  if (dismissedIdx >= 0) {
-    const dismissed = innings.currentBatsmen[dismissedIdx];
-    
-    // Add or update in batting array
-    const battingIdx = innings.batting.findIndex(b => 
-      b.player?.toString() === dismissed.player?.toString()
-    );
-    
-    if (battingIdx >= 0) {
-      innings.batting[battingIdx] = { ...dismissed };
-    } else {
-      innings.batting.push({ ...dismissed });
-    }
-    
-    // Replace with new batsman
-    innings.currentBatsmen[dismissedIdx] = {
-      player: batsman._id,
-      name: batsman.name,
-      runs: 0,
-      balls: 0,
-      fours: 0,
-      sixes: 0,
-      isOut: false,
-      onStrike: dismissed.onStrike
-    };
-  }
-  
-  // Add new batsman to batting array
-  const newBatIdx = innings.batting.findIndex(b => 
-    b.player?.toString() === batsman._id
-  );
-  if (newBatIdx < 0) {
-    innings.batting.push({
-      player: batsman._id,
-      name: batsman.name,
-      runs: 0,
-      balls: 0,
-      fours: 0,
-      sixes: 0,
-      isOut: false,
-      onStrike: false
-    });
-  }
-  
-  await match.save();
-  
-  return ok(res, match, "batsman_added");
-});
-
-// End innings - save final innings data and update player stats
-export const endInnings = asyncHandler(async (req, res) => {
+// Submit full match stats after a match is played
+// POST /api/matches/:matchId/stats
+export const submitMatchStats = asyncHandler(async (req, res) => {
   const { matchId } = req.params;
-  const { inningsData, inningsNumber } = req.body;
-  
-  const match = await Match.findById(matchId);
-  if (!match) {
-    return ok(res, null, "match_not_found");
-  }
-  
-  const inningsIndex = inningsNumber - 1;
-  const innings = match.innings[inningsIndex];
-  
-  if (!innings) {
-    return ok(res, null, "innings_not_found");
-  }
-  
-  // Update innings with final data from frontend
-  if (inningsData) {
-    innings.runs = inningsData.totalRuns || innings.runs;
-    innings.wickets = inningsData.totalWickets || innings.wickets;
-    innings.overs = inningsData.overs || innings.overs;
-    innings.runRate = inningsData.runRate || innings.runRate;
-    
-    // Update batting card
-    if (inningsData.battingCard && inningsData.battingCard.length > 0) {
-      innings.batting = inningsData.battingCard.map(b => ({
-        player: b.player?._id || b.player,
-        name: b.player?.name || b.name,
-        runs: b.runs || 0,
-        balls: b.balls || 0,
-        fours: b.fours || 0,
-        sixes: b.sixes || 0,
-        isOut: b.isOut || false,
-        dismissal: b.dismissal?.text || b.dismissal || null
-      }));
-    }
-    
-    // Update bowling card
-    if (inningsData.bowlingCard && inningsData.bowlingCard.length > 0) {
-      innings.bowling = inningsData.bowlingCard.map(b => ({
-        player: b.player?._id || b.player,
-        name: b.player?.name || b.name,
-        overs: Math.floor((b.balls || 0) / 6) + ((b.balls || 0) % 6) / 10,
-        maidens: b.maidens || 0,
-        runs: b.runs || 0,
-        wickets: b.wickets || 0,
-        economy: b.balls > 0 ? Number((b.runs / (b.balls / 6)).toFixed(2)) : 0
-      }));
-    }
-    
-    // Save fall of wickets
-    if (inningsData.fallOfWickets) {
-      innings.fallOfWickets = inningsData.fallOfWickets;
-    }
-    
-    // Save extras
-    if (inningsData.extras) {
-      innings.extras = inningsData.extras;
-    }
-  }
-  
-  await match.save();
-  
-  // Update player stats after innings
-  try {
-    const statsResult = await updatePlayerStatsAfterInnings(matchId, inningsNumber);
-    console.log(`[Match] Player stats updated after innings ${inningsNumber}:`, statsResult);
-  } catch (statsError) {
-    console.error("[Match] Error updating player stats after innings:", statsError);
-    // Don't fail the request if stats update fails
-  }
-  
-  // Broadcast innings end
-  const { io } = getRuntime();
-  if (io) {
-    io.of("/public").emit("innings:ended", { 
-      matchId, 
-      inningsNumber,
-      score: {
-        runs: innings.runs,
-        wickets: innings.wickets,
-        overs: innings.overs
-      }
-    });
-  }
-  
-  return ok(res, { 
-    match, 
-    message: `Innings ${inningsNumber} ended. Player stats updated.` 
-  }, "innings_ended");
-});
+  const { toss, innings: inningsData, winner, result, resultType } = req.body;
 
-// Complete a match - update stats, clean up cache
-export const completeMatch = asyncHandler(async (req, res) => {
-  const { matchId } = req.params;
-  const { winner, result, resultType } = req.body;
-  
   const match = await Match.findById(matchId)
-    .populate("team1", "name shortName")
-    .populate("team2", "name shortName");
-  
-  if (!match) {
-    return ok(res, null, "match_not_found");
+    .populate('teamA', 'name shortName')
+    .populate('teamB', 'name shortName');
+
+  if (!match) throw new ApiError('Match not found', 404);
+  if (match.status === MATCH_STATUS.COMPLETED) {
+    throw new ApiError('Match stats have already been submitted', 400);
   }
-  
-  // Update match status
+
+  // Update toss
+  if (toss) match.toss = toss;
+
+  // Process and validate innings data
+  const processedInnings = (inningsData || []).map(inning => {
+    // Process batting entries
+    const batting = (inning.batting || []).map(b => {
+      const runs = (b.ones || 0) + 2 * (b.twos || 0) + 3 * (b.threes || 0) +
+        4 * (b.fours || 0) + 5 * (b.fives || 0) + 6 * (b.sixes || 0);
+
+      const dismissalText = b.dismissalType
+        ? buildDismissalText(b.dismissalType, b.bowlerName, b.fielderName)
+        : null;
+
+      return {
+        player: b.player || null,
+        name: b.name || '',
+        ones: b.ones || 0,
+        twos: b.twos || 0,
+        threes: b.threes || 0,
+        fours: b.fours || 0,
+        fives: b.fives || 0,
+        sixes: b.sixes || 0,
+        balls: b.balls || 0,
+        runs,
+        isOut: !!b.dismissalType,
+        dismissalType: b.dismissalType || null,
+        bowler: b.bowler || null,
+        fielder: b.fielder || null,
+        dismissal: dismissalText
+      };
+    });
+
+    // Process bowling entries
+    const bowling = (inning.bowling || []).map(b => {
+      const runsPerOver = b.runsPerOver || [];
+      const runs = runsPerOver.reduce((s, r) => s + r, 0) + (b.wides || 0) + (b.noBalls || 0);
+      const overs = b.overs != null ? b.overs : runsPerOver.length;
+      const economy = overs > 0 ? Number((runs / overs).toFixed(2)) : 0;
+
+      return {
+        player: b.player || null,
+        name: b.name || '',
+        overs,
+        wickets: b.wickets || 0,
+        wides: b.wides || 0,
+        noBalls: b.noBalls || 0,
+        runsPerOver,
+        runs,
+        economy
+      };
+    });
+
+    // Compute innings totals
+    const battingRuns = batting.reduce((s, b) => s + b.runs, 0);
+    const totalWides = bowling.reduce((s, b) => s + (b.wides || 0), 0);
+    const totalNoBalls = bowling.reduce((s, b) => s + (b.noBalls || 0), 0);
+    const totalRuns = battingRuns + totalWides + totalNoBalls;
+    const totalWickets = batting.filter(b => b.isOut).length;
+
+    // Total overs = sum of bowler overs (each bowler bowls distinct overs)
+    const totalOvers = bowling.reduce((s, b) => s + (b.overs || 0), 0);
+
+    const bowlingTeam = inning.bowlingTeam ||
+      (inning.battingTeam?.toString() === match.teamA._id.toString()
+        ? match.teamB._id
+        : match.teamA._id);
+
+    return {
+      battingTeam: inning.battingTeam,
+      bowlingTeam,
+      batting,
+      bowling,
+      runs: totalRuns,
+      wickets: totalWickets,
+      overs: totalOvers,
+      extras: { wides: totalWides, noBalls: totalNoBalls }
+    };
+  });
+
+  match.innings = processedInnings;
+  match.currentInnings = processedInnings.length;
   match.status = MATCH_STATUS.COMPLETED;
-  
-  // Set winner if provided
-  if (winner) {
-    match.winner = winner;
-  }
-  
-  // Set result description
+
+  // Set winner
+  if (winner) match.winner = winner;
+
+  // Set result string
   if (result) {
     match.result = result;
-  } else {
-    // Auto-generate result if not provided
-    const innings1 = match.innings[0];
-    const innings2 = match.innings[1];
-    
-    if (innings1 && innings2 && match.winner) {
-      const winnerTeam = match.winner.toString() === match.team1._id.toString() 
-        ? match.team1 
-        : match.team2;
-      const loserTeam = match.winner.toString() === match.team1._id.toString() 
-        ? match.team2 
-        : match.team1;
-      
-      const winnerScore = match.winner.toString() === match.team1._id.toString()
-        ? innings1.runs
-        : innings2.runs;
-      const loserScore = match.winner.toString() === match.team1._id.toString()
-        ? innings2.runs
-        : innings1.runs;
-      
-      if (resultType === "runs") {
-        const runDiff = winnerScore - loserScore;
-        match.result = `${winnerTeam.name} won by ${runDiff} runs`;
-      } else if (resultType === "wickets") {
-        const wicketsLeft = 10 - (innings2.wickets || 0);
-        match.result = `${winnerTeam.name} won by ${wicketsLeft} wickets`;
-      } else {
-        match.result = `${winnerTeam.name} won`;
-      }
-    } else if (!match.winner) {
-      match.result = "Match Tied";
+  } else if (match.winner && processedInnings.length >= 2) {
+    const winnerTeam = match.winner.toString() === match.teamA._id.toString()
+      ? match.teamA : match.teamB;
+    const loserTeam = match.winner.toString() === match.teamA._id.toString()
+      ? match.teamB : match.teamA;
+
+    const winnerInnings = processedInnings.find(
+      i => i.battingTeam?.toString() === match.winner.toString()
+    );
+    const loserInnings = processedInnings.find(
+      i => i.battingTeam?.toString() !== match.winner.toString()
+    );
+
+    if (resultType === 'runs' && winnerInnings && loserInnings) {
+      const diff = winnerInnings.runs - loserInnings.runs;
+      match.result = `${winnerTeam.name} won by ${diff} run${diff !== 1 ? 's' : ''}`;
+    } else if (resultType === 'wickets' && winnerInnings) {
+      const wicketsLeft = 10 - (winnerInnings.wickets || 0);
+      match.result = `${winnerTeam.name} won by ${wicketsLeft} wicket${wicketsLeft !== 1 ? 's' : ''}`;
+    } else {
+      match.result = `${winnerTeam.name} won`;
     }
+  } else if (!winner) {
+    match.result = 'Match Tied';
   }
-  
-  match.endTime = new Date();
+
   await match.save();
-  
-  // Update all stats (team standings, player stats, NRR, etc.)
+
+  // Update player and team stats
   try {
     await updateAllStatsOnMatchComplete(matchId);
-    console.log(`Stats updated for match ${matchId}`);
   } catch (statsError) {
-    console.error("Error updating stats:", statsError);
-    // Don't fail the request if stats update fails
+    console.error('[Match] Error updating stats:', statsError);
+    // Stats update failure should not fail the request
   }
-  
-  // Clean up Redis cache
-  try {
-    const { redis } = getRuntime();
-    if (redis?.pubClient) {
-      await deleteLiveData(redis.pubClient, matchId);
-    }
-    console.log(`Cache cleared for match ${matchId}`);
-  } catch (cacheError) {
-    console.error("Error clearing cache:", cacheError);
-  }
-  
-  // Broadcast match completion via socket
-  const { io } = getRuntime();
-  if (io) {
-    io.of("/public").to(matchId).emit("match:completed", {
-      matchId,
-      status: MATCH_STATUS.COMPLETED,
-      winner: match.winner,
-      result: match.result,
-      teamA: match.teamA,
-      teamB: match.teamB,
-      innings: match.innings
-    });
-  }
-  
-  return ok(res, match, "match_completed");
+
+  return ok(res, match, 'match_stats_submitted');
 });

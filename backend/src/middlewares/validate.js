@@ -140,29 +140,6 @@ export const matchSchemas = {
       winner: Joi.string().pattern(/^[a-f\d]{24}$/i),
       decision: Joi.string().valid("bat", "bowl")
     })
-  }),
-
-  score: Joi.object({
-    over: Joi.number().integer().min(0).required(),
-    ball: Joi.number().integer().min(1).max(6).required(),
-    battingTeam: Joi.string().pattern(/^[a-f\d]{24}$/i),
-    bowlingTeam: Joi.string().pattern(/^[a-f\d]{24}$/i),
-    striker: Joi.string().max(100).allow(""),
-    nonStriker: Joi.string().max(100).allow(""),
-    bowler: Joi.string().max(100).allow(""),
-    strikerId: Joi.string().pattern(/^[a-f\d]{24}$/i).allow(null),
-    nonStrikerId: Joi.string().pattern(/^[a-f\d]{24}$/i).allow(null),
-    bowlerId: Joi.string().pattern(/^[a-f\d]{24}$/i).allow(null),
-    runsOffBat: Joi.number().integer().min(0).max(6).default(0),
-    extras: Joi.number().integer().min(0).max(7).default(0),
-    extraType: Joi.string().valid("wide", "noball", "bye", "legbye", "penalty").allow("", null),
-    wicket: Joi.boolean().default(false),
-    dismissal: Joi.object({
-      type: Joi.string().valid("bowled", "caught", "lbw", "runout", "stumped", "hitwicket", "obstructing", "retired", "timedout"),
-      fielder: Joi.string().max(100).allow(""),
-      fielderId: Joi.string().pattern(/^[a-f\d]{24}$/i).allow(null),
-      text: Joi.string().max(200).allow("").optional()
-    }).allow(null)
   })
 };
 

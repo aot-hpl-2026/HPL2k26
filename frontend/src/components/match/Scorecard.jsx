@@ -6,67 +6,48 @@ const Scorecard = ({ match }) => {
 
   if (!match) return null
 
-  // Map teamA/teamB to team1/team2 for display
   const team1 = match.team1 || match.teamA || {}
   const team2 = match.team2 || match.teamB || {}
 
-  // Get actual innings data from match
   const innings1 = match.innings?.[0] || {}
   const innings2 = match.innings?.[1] || {}
 
-  // Determine which team batted first based on innings data
   const team1Id = team1._id?.toString?.() || team1.id
   const innings1BattingTeamId = innings1.battingTeam?.toString?.() || innings1.battingTeam
   const team1BattedFirst = innings1BattingTeamId === team1Id || !innings1BattingTeamId
 
-  // Get batting and bowling data from actual innings
   const firstInningsBatting = innings1.batting || []
   const firstInningsBowling = innings1.bowling || []
   const secondInningsBatting = innings2.batting || []
   const secondInningsBowling = innings2.bowling || []
 
-  // Team scores from innings
   const team1Score = team1BattedFirst
     ? { runs: innings1.runs || 0, wickets: innings1.wickets || 0, overs: innings1.overs || 0 }
     : { runs: innings2.runs || 0, wickets: innings2.wickets || 0, overs: innings2.overs || 0 }
-  
+
   const team2Score = team1BattedFirst
     ? { runs: innings2.runs || 0, wickets: innings2.wickets || 0, overs: innings2.overs || 0 }
     : { runs: innings1.runs || 0, wickets: innings1.wickets || 0, overs: innings1.overs || 0 }
 
-  // Get extras from innings
   const getExtrasString = (innings) => {
     const extras = innings.extras || {}
     const parts = []
-    if (extras.byes) parts.push(`b ${extras.byes}`)
-    if (extras.legByes) parts.push(`lb ${extras.legByes}`)
-    if (extras.wides) parts.push(`w ${extras.wides}`)
+    if (extras.wides) parts.push(`wd ${extras.wides}`)
     if (extras.noBalls) parts.push(`nb ${extras.noBalls}`)
-    if (extras.penalty) parts.push(`p ${extras.penalty}`)
-    const total = (extras.byes || 0) + (extras.legByes || 0) + (extras.wides || 0) + (extras.noBalls || 0) + (extras.penalty || 0)
+    const total = (extras.wides || 0) + (extras.noBalls || 0)
     return parts.length > 0 ? `${total} (${parts.join(', ')})` : '0'
   }
 
-  // Get fall of wickets from innings
-  const getFallOfWickets = (innings) => {
-    if (innings.fallOfWickets && innings.fallOfWickets.length > 0) {
-      return innings.fallOfWickets
-    }
-    // Build from batting array if not available
-    const fow = []
-    let runningTotal = 0
-    const batsmen = innings.batting || []
-    batsmen.forEach((b, idx) => {
-      if (b.isOut) {
-        runningTotal = b.atScore || (runningTotal + b.runs)
-        fow.push({
-          wicket: fow.length + 1,
-          runs: runningTotal,
-          batsman: b.name || b.player?.name || `Batsman ${idx + 1}`
-        })
-      }
-    })
-    return fow
+  const currentBatting = selectedInnings === 'first' ? firstInningsBatting : secondInningsBatting
+  const currentBowling = selectedInnings === 'first' ? firstInningsBowling : secondInningsBowling
+  const currentInnings = selectedInnings === 'first' ? innings1 : innings2
+
+  if (match.innings?.length === 0 || (firstInningsBatting.length === 0 && firstInningsBowling.length === 0)) {
+    return (
+      <div className="bg-base-100 rounded-xl border border-base-200 p-8 text-center">
+        <p className="text-base-content/50">No scorecard data available yet</p>
+      </div>
+    )
   }
 
   return (
@@ -85,9 +66,12 @@ const Scorecard = ({ match }) => {
               : 'hover:bg-base-200'
           }`}
         >
-          <span className="block truncate">{team1.name}</span>
+          <span className="block truncate">{team1BattedFirst ? team1.name : team2.name}</span>
           <span className="text-xs opacity-80">
-            {team1Score.runs}/{team1Score.wickets} ({team1Score.overs} ov)
+            {team1BattedFirst
+              ? `${team1Score.runs}/${team1Score.wickets} (${team1Score.overs} ov)`
+              : `${team2Score.runs}/${team2Score.wickets} (${team2Score.overs} ov)`
+            }
           </span>
         </button>
         <button
@@ -98,9 +82,12 @@ const Scorecard = ({ match }) => {
               : 'hover:bg-base-200'
           }`}
         >
-          <span className="block truncate">{team2.name}</span>
+          <span className="block truncate">{team1BattedFirst ? team2.name : team1.name}</span>
           <span className="text-xs opacity-80">
-            {team2Score.runs}/{team2Score.wickets} ({team2Score.overs} ov)
+            {team1BattedFirst
+              ? `${team2Score.runs}/${team2Score.wickets} (${team2Score.overs} ov)`
+              : `${team1Score.runs}/${team1Score.wickets} (${team1Score.overs} ov)`
+            }
           </span>
         </button>
       </div>
@@ -108,12 +95,15 @@ const Scorecard = ({ match }) => {
       {/* Batting Card */}
       <div className="bg-base-100 rounded-xl border border-base-200 overflow-hidden">
         <div className={`px-4 py-3 ${
-          selectedInnings === 'first' 
-            ? 'bg-gradient-to-r from-hpl-maroon to-hpl-maroon/80' 
+          selectedInnings === 'first'
+            ? 'bg-gradient-to-r from-hpl-maroon to-hpl-maroon/80'
             : 'bg-gradient-to-r from-hpl-navy to-hpl-navy/80'
         }`}>
           <h3 className="text-white font-epic font-semibold text-sm sm:text-base">
-            {selectedInnings === 'first' ? team1.name : team2.name} - Batting
+            {selectedInnings === 'first'
+              ? (team1BattedFirst ? team1.name : team2.name)
+              : (team1BattedFirst ? team2.name : team1.name)
+            } - Batting
           </h3>
         </div>
         <div className="overflow-x-auto">
@@ -129,29 +119,32 @@ const Scorecard = ({ match }) => {
               </tr>
             </thead>
             <tbody>
-              {(selectedInnings === 'first' ? firstInningsBatting : secondInningsBatting).map((batsman, idx) => (
+              {currentBatting.map((batsman, idx) => (
                 <tr key={idx} className={batsman.isOut ? 'opacity-70' : ''}>
                   <td>
                     <div>
-                      <p className="font-medium text-sm">{batsman.name || batsman.player?.name || `Batsman ${idx + 1}`}</p>
-                      {batsman.isOut && (
-                        <p className="text-xs text-base-content/50">{batsman.dismissal || 'out'}</p>
+                      <p className="font-medium text-sm">{batsman.name || `Batsman ${idx + 1}`}</p>
+                      {batsman.isOut && batsman.dismissal && (
+                        <p className="text-xs text-base-content/50">{batsman.dismissal}</p>
+                      )}
+                      {batsman.isOut && !batsman.dismissal && (
+                        <p className="text-xs text-base-content/50">{batsman.dismissalType || 'out'}</p>
                       )}
                       {!batsman.isOut && (
                         <p className="text-xs text-success">not out</p>
                       )}
                     </div>
                   </td>
-                  <td className="text-center font-bold">{batsman.runs || 0}</td>
+                  <td className="text-center font-bold">{batsman.runs ?? 0}</td>
                   <td className="text-center text-base-content/70">{batsman.balls || 0}</td>
                   <td className="text-center text-base-content/70">{batsman.fours || 0}</td>
                   <td className="text-center text-base-content/70">{batsman.sixes || 0}</td>
                   <td className="text-center text-base-content/70">
-                    {batsman.balls > 0 ? ((batsman.runs / batsman.balls) * 100).toFixed(1) : '0.0'}
+                    {batsman.balls > 0 ? (((batsman.runs ?? 0) / batsman.balls) * 100).toFixed(1) : '0.0'}
                   </td>
                 </tr>
               ))}
-              {(selectedInnings === 'first' ? firstInningsBatting : secondInningsBatting).length === 0 && (
+              {currentBatting.length === 0 && (
                 <tr>
                   <td colSpan="6" className="text-center text-base-content/50 py-6">
                     No batting data available
@@ -162,16 +155,14 @@ const Scorecard = ({ match }) => {
             <tfoot className="bg-base-200">
               <tr>
                 <td className="font-medium text-sm">Extras</td>
-                <td colSpan="5" className="text-center text-sm">
-                  {getExtrasString(selectedInnings === 'first' ? innings1 : innings2)}
-                </td>
+                <td colSpan="5" className="text-center text-sm">{getExtrasString(currentInnings)}</td>
               </tr>
               <tr className="font-bold">
                 <td className="text-sm">Total</td>
                 <td colSpan="5" className="text-center text-sm">
-                  {selectedInnings === 'first' 
-                    ? `${team1Score.runs}/${team1Score.wickets} (${team1Score.overs} overs)`
-                    : `${team2Score.runs}/${team2Score.wickets} (${team2Score.overs} overs)`
+                  {selectedInnings === 'first'
+                    ? `${team1BattedFirst ? team1Score.runs : team2Score.runs}/${team1BattedFirst ? team1Score.wickets : team2Score.wickets} (${team1BattedFirst ? team1Score.overs : team2Score.overs} overs)`
+                    : `${team1BattedFirst ? team2Score.runs : team1Score.runs}/${team1BattedFirst ? team2Score.wickets : team1Score.wickets} (${team1BattedFirst ? team2Score.overs : team1Score.overs} overs)`
                   }
                 </td>
               </tr>
@@ -183,12 +174,15 @@ const Scorecard = ({ match }) => {
       {/* Bowling Card */}
       <div className="bg-base-100 rounded-xl border border-base-200 overflow-hidden">
         <div className={`px-4 py-3 ${
-          selectedInnings === 'first' 
-            ? 'bg-gradient-to-r from-hpl-navy to-hpl-navy/80' 
+          selectedInnings === 'first'
+            ? 'bg-gradient-to-r from-hpl-navy to-hpl-navy/80'
             : 'bg-gradient-to-r from-hpl-maroon to-hpl-maroon/80'
         }`}>
           <h3 className="text-white font-epic font-semibold text-sm sm:text-base">
-            {selectedInnings === 'first' ? team2.name : team1.name} - Bowling
+            {selectedInnings === 'first'
+              ? (team1BattedFirst ? team2.name : team1.name)
+              : (team1BattedFirst ? team1.name : team2.name)
+            } - Bowling
           </h3>
         </div>
         <div className="overflow-x-auto">
@@ -197,52 +191,34 @@ const Scorecard = ({ match }) => {
               <tr className="text-base-content/60 text-xs sm:text-sm">
                 <th>Bowler</th>
                 <th className="text-center">O</th>
-                <th className="text-center">M</th>
                 <th className="text-center">R</th>
                 <th className="text-center">W</th>
+                <th className="text-center">Wd</th>
+                <th className="text-center">NB</th>
                 <th className="text-center">Econ</th>
               </tr>
             </thead>
             <tbody>
-              {(selectedInnings === 'first' ? firstInningsBowling : secondInningsBowling).map((bowler, idx) => (
+              {currentBowling.map((bowler, idx) => (
                 <tr key={idx}>
-                  <td className="font-medium text-sm">{bowler.name || bowler.player?.name || `Bowler ${idx + 1}`}</td>
+                  <td className="font-medium text-sm">{bowler.name || `Bowler ${idx + 1}`}</td>
                   <td className="text-center text-base-content/70">{bowler.overs || 0}</td>
-                  <td className="text-center text-base-content/70">{bowler.maidens || 0}</td>
                   <td className="text-center text-base-content/70">{bowler.runs || 0}</td>
                   <td className="text-center font-bold text-primary">{bowler.wickets || 0}</td>
+                  <td className="text-center text-base-content/70">{bowler.wides || 0}</td>
+                  <td className="text-center text-base-content/70">{bowler.noBalls || 0}</td>
                   <td className="text-center text-base-content/70">{bowler.economy?.toFixed?.(1) || '0.0'}</td>
                 </tr>
               ))}
-              {(selectedInnings === 'first' ? firstInningsBowling : secondInningsBowling).length === 0 && (
+              {currentBowling.length === 0 && (
                 <tr>
-                  <td colSpan="6" className="text-center text-base-content/50 py-6">
+                  <td colSpan="7" className="text-center text-base-content/50 py-6">
                     No bowling data available
                   </td>
                 </tr>
               )}
             </tbody>
           </table>
-        </div>
-      </div>
-
-      {/* Fall of Wickets */}
-      <div className="bg-base-100 rounded-xl border border-base-200 overflow-hidden">
-        <div className="bg-gradient-to-r from-hpl-midnight to-hpl-midnight/80 px-4 py-3">
-          <h3 className="text-white font-epic font-semibold text-sm sm:text-base">Fall of Wickets</h3>
-        </div>
-        <div className="p-4">
-          <div className="flex flex-wrap gap-3">
-            {getFallOfWickets(selectedInnings === 'first' ? innings1 : innings2).map((fow, idx) => (
-              <div key={idx} className="bg-base-200 rounded-lg px-3 py-2 text-sm">
-                <span className="font-bold">{fow.runs}-{fow.wicket}</span>
-                <span className="text-base-content/60 ml-1">({fow.batsman})</span>
-              </div>
-            ))}
-            {getFallOfWickets(selectedInnings === 'first' ? innings1 : innings2).length === 0 && (
-              <p className="text-base-content/50 text-sm">No wickets fallen</p>
-            )}
-          </div>
         </div>
       </div>
     </motion.div>

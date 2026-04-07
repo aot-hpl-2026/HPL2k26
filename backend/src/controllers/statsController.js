@@ -20,7 +20,7 @@ export const topBowlers = asyncHandler(async (req, res) => {
   return ok(res, data, "top_bowlers");
 });
 
-// Recalculate all player stats from Ball collection
+// Recalculate all player stats from match innings data
 export const recalculateAllPlayerStats = asyncHandler(async (req, res) => {
   const players = await Player.find({}).select('_id name');
   let updated = 0;
@@ -52,8 +52,7 @@ export const recalculateAllPlayerStats = asyncHandler(async (req, res) => {
         'stats.bowling.economy': stats.bowling.economy,
         'stats.bowling.average': stats.bowling.average,
         'stats.fielding.catches': stats.fielding.catches,
-        'stats.fielding.runOuts': stats.fielding.runOuts,
-        'stats.fielding.stumpings': stats.fielding.stumpings
+        'stats.fielding.runOuts': stats.fielding.runOuts
       });
       
       updated++;

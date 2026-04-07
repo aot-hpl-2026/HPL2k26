@@ -22,12 +22,3 @@ export const authLimiter = rateLimit({
   legacyHeaders: false,
   message: { success: false, message: "Too many login attempts, please try again later" }
 });
-
-// Scoring rate limiter (more permissive for real-time updates)
-export const scoringLimiter = rateLimit({
-  windowMs: 10 * 1000, // 10 seconds
-  limit: 30, // 30 requests per 10 seconds (3 per second average)
-  standardHeaders: true,
-  legacyHeaders: false,
-  message: { success: false, message: "Too many scoring requests, slow down" }
-});
