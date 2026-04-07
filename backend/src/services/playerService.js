@@ -38,7 +38,7 @@ export const createPlayer = async (payload) => {
       matches: 0,
       batting: { matches: 0, innings: 0, runs: 0, balls: 0, fours: 0, sixes: 0, highScore: 0, notOuts: 0, average: 0, strikeRate: 0 },
       bowling: { matches: 0, innings: 0, overs: 0, balls: 0, runs: 0, wickets: 0, bestFigures: '-', economy: 0, average: 0 },
-      fielding: { catches: 0, runOuts: 0, stumpings: 0 }
+      fielding: { catches: 0, runOuts: 0 }
     }
   });
 };

@@ -68,7 +68,7 @@ export const players = [
       matches: 4,
       batting: { runs: 78, balls: 56, fours: 6, sixes: 3, highScore: 28, average: 19.5, strikeRate: 139.29 },
       bowling: { overs: 0, wickets: 0, runs: 0, economy: 0, bestFigures: '-' },
-      fielding: { catches: 6, runouts: 2, stumpings: 2 }
+      fielding: { catches: 6, runOuts: 2 }
     }
   },
   {
@@ -282,7 +282,7 @@ export const players = [
       matches: 4,
       batting: { runs: 68, balls: 52, fours: 6, sixes: 2, highScore: 24, average: 17.0, strikeRate: 130.77 },
       bowling: { overs: 0, wickets: 0, runs: 0, economy: 0, bestFigures: '-' },
-      fielding: { catches: 5, runouts: 1, stumpings: 3 }
+      fielding: { catches: 5, runOuts: 1 }
     }
   },
 ]
