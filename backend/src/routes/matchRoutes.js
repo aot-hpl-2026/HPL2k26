@@ -5,6 +5,7 @@ import {
   list,
   getById,
   submitMatchStats,
+  updateMatchStats,
   remove,
   liveMatches,
   upcomingMatches,
@@ -32,5 +33,7 @@ router.delete("/:matchId", requireAuth, validateObjectId("matchId"), remove);
 
 // Submit match stats (admin only) — auto-calculates all player/team stats
 router.post("/:matchId/stats", requireAuth, validateObjectId("matchId"), submitMatchStats);
+// Edit already-submitted match stats
+router.put("/:matchId/stats", requireAuth, validateObjectId("matchId"), updateMatchStats);
 
 export default router;

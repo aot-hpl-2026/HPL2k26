@@ -68,99 +68,57 @@ const buildDismissalText = (dismissalType, bowlerName, fielderName) => {
   return dismissalType;
 };
 
-// Submit full match stats after a match is played
-// POST /api/matches/:matchId/stats
-export const submitMatchStats = asyncHandler(async (req, res) => {
-  const { matchId } = req.params;
-  const { toss, innings: inningsData, winner, result, resultType } = req.body;
+// Shared: process and save innings stats onto a match document
+const applyMatchStats = async (match, body) => {
+  const { toss, innings: inningsData, winner, result, resultType } = body;
 
-  const match = await Match.findById(matchId)
-    .populate('teamA', 'name shortName')
-    .populate('teamB', 'name shortName');
-
-  if (!match) throw new ApiError('Match not found', 404);
-  if (match.status === MATCH_STATUS.COMPLETED) {
-    throw new ApiError('Match stats have already been submitted', 400);
-  }
-
-  // Update toss
   if (toss) match.toss = toss;
 
-  // Process and validate innings data
   const processedInnings = (inningsData || []).map(inning => {
-    // Process batting entries
     const batting = (inning.batting || []).map(b => {
       const runs = (b.ones || 0) + 2 * (b.twos || 0) + 3 * (b.threes || 0) +
         4 * (b.fours || 0) + 5 * (b.fives || 0) + 6 * (b.sixes || 0);
-
       const dismissalText = b.dismissalType
         ? buildDismissalText(b.dismissalType, b.bowlerName, b.fielderName)
         : null;
-
       return {
-        player: b.player || null,
-        name: b.name || '',
-        ones: b.ones || 0,
-        twos: b.twos || 0,
-        threes: b.threes || 0,
-        fours: b.fours || 0,
-        fives: b.fives || 0,
-        sixes: b.sixes || 0,
-        balls: b.balls || 0,
-        runs,
-        isOut: !!b.dismissalType,
-        dismissalType: b.dismissalType || null,
-        bowler: b.bowler || null,
-        fielder: b.fielder || null,
-        dismissal: dismissalText
+        player: b.player || null, name: b.name || '',
+        ones: b.ones || 0, twos: b.twos || 0, threes: b.threes || 0,
+        fours: b.fours || 0, fives: b.fives || 0, sixes: b.sixes || 0,
+        balls: b.balls || 0, runs,
+        isOut: !!b.dismissalType, dismissalType: b.dismissalType || null,
+        bowler: b.bowler || null, fielder: b.fielder || null, dismissal: dismissalText
       };
     });
 
-    // Process bowling entries
     const bowling = (inning.bowling || []).map(b => {
       const runsPerOver = b.runsPerOver || [];
       const runs = runsPerOver.reduce((s, r) => s + r, 0) + (b.wides || 0) + (b.noBalls || 0);
       const overs = b.overs != null ? b.overs : runsPerOver.length;
       const economy = overs > 0 ? Number((runs / overs).toFixed(2)) : 0;
-
       return {
-        player: b.player || null,
-        name: b.name || '',
-        overs,
-        wickets: b.wickets || 0,
-        wides: b.wides || 0,
-        noBalls: b.noBalls || 0,
-        runsPerOver,
-        runs,
-        economy
+        player: b.player || null, name: b.name || '',
+        overs, wickets: b.wickets || 0, wides: b.wides || 0, noBalls: b.noBalls || 0,
+        runsPerOver, runs, economy
       };
     });
 
-    // Compute innings totals
     const battingRuns = batting.reduce((s, b) => s + b.runs, 0);
     const extrasRuns = inning.extras || 0;
     const penaltyRuns = inning.penaltyRuns || 0;
     const totalRuns = battingRuns + extrasRuns + penaltyRuns;
     const totalWickets = batting.filter(b => b.isOut).length;
-
-    // Total overs = sum of bowler overs (each bowler bowls distinct overs)
     const totalOvers = bowling.reduce((s, b) => s + (b.overs || 0), 0);
 
     const bowlingTeam = inning.bowlingTeam ||
       (inning.battingTeam?.toString() === match.teamA._id.toString()
-        ? match.teamB._id
-        : match.teamA._id);
+        ? match.teamB._id : match.teamA._id);
 
     return {
-      battingTeam: inning.battingTeam,
-      bowlingTeam,
-      batting,
-      bowling,
-      runs: totalRuns,
-      wickets: totalWickets,
-      overs: totalOvers,
-      extras: extrasRuns,
-      penaltyRuns
+      battingTeam: inning.battingTeam, bowlingTeam,
+      batting, bowling,
+      runs: totalRuns, wickets: totalWickets, overs: totalOvers,
+      extras: extrasRuns, penaltyRuns
     };
   });
 
@@ -168,25 +126,20 @@ export const submitMatchStats = asyncHandler(async (req, res) => {
   match.currentInnings = processedInnings.length;
   match.status = MATCH_STATUS.COMPLETED;
 
-  // Set winner
   if (winner) match.winner = winner;
+  else match.winner = undefined;
 
-  // Set result string
   if (result) {
     match.result = result;
   } else if (match.winner && processedInnings.length >= 2) {
     const winnerTeam = match.winner.toString() === match.teamA._id.toString()
       ? match.teamA : match.teamB;
-    const loserTeam = match.winner.toString() === match.teamA._id.toString()
-      ? match.teamB : match.teamA;
-
     const winnerInnings = processedInnings.find(
       i => i.battingTeam?.toString() === match.winner.toString()
     );
     const loserInnings = processedInnings.find(
       i => i.battingTeam?.toString() !== match.winner.toString()
     );
-
     if (resultType === 'runs' && winnerInnings && loserInnings) {
       const diff = winnerInnings.runs - loserInnings.runs;
       match.result = `${winnerTeam.name} won by ${diff} run${diff !== 1 ? 's' : ''}`;
@@ -201,14 +154,37 @@ export const submitMatchStats = asyncHandler(async (req, res) => {
   }
 
   await match.save();
+  return match;
+};
 
-  // Update player and team stats
-  try {
-    await updateAllStatsOnMatchComplete(matchId);
-  } catch (statsError) {
-    console.error('[Match] Error updating stats:', statsError);
-    // Stats update failure should not fail the request
+// POST /api/matches/:matchId/stats — first-time submission
+export const submitMatchStats = asyncHandler(async (req, res) => {
+  const { matchId } = req.params;
+  const match = await Match.findById(matchId)
+    .populate('teamA', 'name shortName')
+    .populate('teamB', 'name shortName');
+  if (!match) throw new ApiError('Match not found', 404);
+  if (match.status === MATCH_STATUS.COMPLETED)
+    throw new ApiError('Match stats have already been submitted. Use PUT to edit.', 400);
+
+  const saved = await applyMatchStats(match, req.body);
+  try { await updateAllStatsOnMatchComplete(matchId); } catch (e) {
+    console.error('[Match] Error updating stats:', e);
   }
+  return ok(res, saved, 'match_stats_submitted');
+});
 
-  return ok(res, match, 'match_stats_submitted');
+// PUT /api/matches/:matchId/stats — edit already-submitted stats
+export const updateMatchStats = asyncHandler(async (req, res) => {
+  const { matchId } = req.params;
+  const match = await Match.findById(matchId)
+    .populate('teamA', 'name shortName')
+    .populate('teamB', 'name shortName');
+  if (!match) throw new ApiError('Match not found', 404);
+
+  const saved = await applyMatchStats(match, req.body);
+  try { await updateAllStatsOnMatchComplete(matchId); } catch (e) {
+    console.error('[Match] Error updating stats:', e);
+  }
+  return ok(res, saved, 'match_stats_updated');
 });

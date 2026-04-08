@@ -19,7 +19,8 @@ import {
   HiCheck,
   HiExclamationTriangle,
   HiTableCells,
-  HiChevronRight
+  HiChevronRight,
+  HiPencilSquare
 } from 'react-icons/hi2'
 import { authApi, matchesApi, teamsApi, playersApi } from '../services/api'
 import { getAvatarUrl } from '../utils'
@@ -1349,12 +1350,52 @@ const MatchStatsFormModal = ({ match, onClose, onSuccess }) => {
   const playersA = teamAPlayersData?.data || []
   const playersB = teamBPlayersData?.data || []
 
+  const isEditing = match?.status === 'completed'
+
   const [toss, setToss] = useState({ winner: teamAId || '', decision: 'bat' })
   const [innings, setInnings] = useState([
     { battingTeam: '', bowling: [], batting: [], extras: 0, penaltyRuns: 0 },
     { battingTeam: '', bowling: [], batting: [], extras: 0, penaltyRuns: 0 }
   ])
   const [resultData, setResultData] = useState({ winner: '', resultType: 'runs', result: '' })
+
+  // Pre-populate form when editing a completed match
+  useEffect(() => {
+    if (!match?.innings?.length) return
+    const id = s => s?._id?.toString?.() || s?.toString?.() || ''
+    setToss({
+      winner: id(match.toss?.winner) || teamAId || '',
+      decision: match.toss?.decision || 'bat'
+    })
+    const mapped = match.innings.map(inn => ({
+      battingTeam: id(inn.battingTeam),
+      batting: (inn.batting || []).map(b => ({
+        player: id(b.player), name: b.name || '',
+        ones: b.ones || 0, twos: b.twos || 0, threes: b.threes || 0,
+        fours: b.fours || 0, fives: b.fives || 0, sixes: b.sixes || 0,
+        balls: b.balls || 0,
+        dismissalType: b.dismissalType || '',
+        bowler: id(b.bowler), fielder: id(b.fielder)
+      })),
+      bowling: (inn.bowling || []).map(b => ({
+        player: id(b.player), name: b.name || '',
+        overs: b.overs || 0, wickets: b.wickets || 0,
+        wides: b.wides || 0, noBalls: b.noBalls || 0,
+        runsPerOver: b.runsPerOver || []
+      })),
+      extras: inn.extras || 0,
+      penaltyRuns: inn.penaltyRuns || 0
+    }))
+    setInnings([
+      mapped[0] || { battingTeam: '', bowling: [], batting: [], extras: 0, penaltyRuns: 0 },
+      mapped[1] || { battingTeam: '', bowling: [], batting: [], extras: 0, penaltyRuns: 0 }
+    ])
+    setResultData({
+      winner: id(match.winner) || '',
+      resultType: 'runs',
+      result: match.result || ''
+    })
+  }, [match?._id]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Determine batting teams from toss
   const getBattingTeamForInnings = (inningsNum) => {
@@ -1487,15 +1528,20 @@ const MatchStatsFormModal = ({ match, onClose, onSuccess }) => {
         }
       })
 
-      await matchesApi.submitMatchStats(match._id, {
+      const payload = {
         toss,
         innings: enrichedInnings,
         winner: resultData.winner || null,
         resultType: resultData.resultType,
         result: resultData.result || null
-      })
-
-      toast.success('Match stats submitted! Player and team stats updated.')
+      }
+      if (isEditing) {
+        await matchesApi.updateMatchStats(match._id, payload)
+        toast.success('Match stats updated! Player and team stats recalculated.')
+      } else {
+        await matchesApi.submitMatchStats(match._id, payload)
+        toast.success('Match stats submitted! Player and team stats updated.')
+      }
       queryClient.invalidateQueries(['admin-matches'])
       queryClient.invalidateQueries(['admin-all-matches'])
       onSuccess?.()
@@ -1700,7 +1746,7 @@ const MatchStatsFormModal = ({ match, onClose, onSuccess }) => {
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b border-base-200 bg-gradient-to-r from-hpl-maroon to-hpl-navy">
           <div>
-            <h3 className="font-epic font-bold text-lg text-white">Submit Match Stats</h3>
+            <h3 className="font-epic font-bold text-lg text-white">{isEditing ? 'Edit Match Stats' : 'Submit Match Stats'}</h3>
             <p className="text-white/70 text-sm">{match?.teamA?.shortName} vs {match?.teamB?.shortName}</p>
           </div>
           <button onClick={onClose} className="btn btn-ghost btn-sm btn-circle text-white hover:bg-white/20"><HiXMark className="w-5 h-5" /></button>
@@ -1825,7 +1871,7 @@ const MatchStatsFormModal = ({ match, onClose, onSuccess }) => {
             ) : (
               <button type="button" onClick={handleSubmit} disabled={isSubmitting} className="btn btn-success gap-2">
                 {isSubmitting ? <span className="loading loading-spinner loading-sm"></span> : <HiCheck className="w-4 h-4" />}
-                Submit Match Stats
+                {isEditing ? 'Update Stats' : 'Submit Match Stats'}
               </button>
             )}
           </div>
@@ -1909,7 +1955,7 @@ const MatchStatsTab = () => {
               <div className="divider text-base-content/40 text-sm">Completed Matches</div>
               {allMatches.filter(m => m.status === 'completed').map((match) => (
                 <motion.div key={match._id} initial={{ opacity: 0 }} animate={{ opacity: 1 }}
-                  className="bg-base-100 rounded-xl border border-base-200 p-4 opacity-70"
+                  className="bg-base-100 rounded-xl border border-base-200 p-4"
                 >
                   <div className="flex items-center justify-between flex-wrap gap-3">
                     <div className="flex items-center gap-3">
@@ -1920,6 +1966,12 @@ const MatchStatsTab = () => {
                     <div className="flex items-center gap-3">
                       <span className="badge badge-success">Completed</span>
                       {match.result && <p className="text-sm text-base-content/60 italic">{match.result}</p>}
+                      <button
+                        onClick={() => { setSelectedMatch(match); setShowStatsModal(true) }}
+                        className="btn btn-outline btn-sm gap-1"
+                      >
+                        <HiPencilSquare className="w-4 h-4" /> Edit Stats
+                      </button>
                     </div>
                   </div>
                 </motion.div>

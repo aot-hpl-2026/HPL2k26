@@ -87,6 +87,13 @@ export const matchesApi = {
     if (!result.success) throw new Error(result.error || 'Failed to submit match stats')
     return result
   },
+
+  // Edit already-submitted match stats (Admin only)
+  updateMatchStats: async (matchId, statsData) => {
+    const result = await api.put(`/matches/${matchId}/stats`, statsData)
+    if (!result.success) throw new Error(result.error || 'Failed to update match stats')
+    return result
+  },
 }
 
 export default matchesApi
