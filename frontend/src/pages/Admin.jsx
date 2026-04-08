@@ -1351,8 +1351,8 @@ const MatchStatsFormModal = ({ match, onClose, onSuccess }) => {
 
   const [toss, setToss] = useState({ winner: teamAId || '', decision: 'bat' })
   const [innings, setInnings] = useState([
-    { battingTeam: '', bowling: [], batting: [] },
-    { battingTeam: '', bowling: [], batting: [] }
+    { battingTeam: '', bowling: [], batting: [], extras: 0, penaltyRuns: 0 },
+    { battingTeam: '', bowling: [], batting: [], extras: 0, penaltyRuns: 0 }
   ])
   const [resultData, setResultData] = useState({ winner: '', resultType: 'runs', result: '' })
 
@@ -1412,16 +1412,30 @@ const MatchStatsFormModal = ({ match, onClose, onSuccess }) => {
     updateBowler(inningsIdx, bowlerIdx, 'runsPerOver', runsPerOver)
   }
   const addOverToBowler = (inningsIdx, bowlerIdx) => {
-    const bowler = innings[inningsIdx].bowling[bowlerIdx]
-    const runsPerOver = [...(bowler.runsPerOver || []), 0]
-    updateBowler(inningsIdx, bowlerIdx, 'runsPerOver', runsPerOver)
-    updateBowler(inningsIdx, bowlerIdx, 'overs', runsPerOver.length)
+    setInnings(prev => {
+      const next = [...prev]
+      const inn = { ...next[inningsIdx] }
+      inn.bowling = inn.bowling.map((b, i) => {
+        if (i !== bowlerIdx) return b
+        const runsPerOver = [...(b.runsPerOver || []), 0]
+        return { ...b, runsPerOver, overs: runsPerOver.length }
+      })
+      next[inningsIdx] = inn
+      return next
+    })
   }
   const removeOverFromBowler = (inningsIdx, bowlerIdx) => {
-    const bowler = innings[inningsIdx].bowling[bowlerIdx]
-    const runsPerOver = (bowler.runsPerOver || []).slice(0, -1)
-    updateBowler(inningsIdx, bowlerIdx, 'runsPerOver', runsPerOver)
-    updateBowler(inningsIdx, bowlerIdx, 'overs', runsPerOver.length)
+    setInnings(prev => {
+      const next = [...prev]
+      const inn = { ...next[inningsIdx] }
+      inn.bowling = inn.bowling.map((b, i) => {
+        if (i !== bowlerIdx) return b
+        const runsPerOver = (b.runsPerOver || []).slice(0, -1)
+        return { ...b, runsPerOver, overs: runsPerOver.length }
+      })
+      next[inningsIdx] = inn
+      return next
+    })
   }
 
   // Auto-fill batting team from toss when entering innings steps
@@ -1467,7 +1481,9 @@ const MatchStatsFormModal = ({ match, onClose, onSuccess }) => {
         return {
           battingTeam: inn.battingTeam || getBattingTeamForInnings(inningsIdx + 1),
           batting,
-          bowling
+          bowling,
+          extras: inn.extras || 0,
+          penaltyRuns: inn.penaltyRuns || 0
         }
       })
 
@@ -1575,6 +1591,30 @@ const MatchStatsFormModal = ({ match, onClose, onSuccess }) => {
             </div>
           </div>
         ))}
+        {/* Extras & Penalty Runs */}
+        <div className="bg-base-200 rounded-lg p-3 space-y-2">
+          <p className="text-sm font-medium">Innings Totals</p>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="form-control">
+              <label className="label py-0"><span className="label-text text-xs">Extra Runs (Wides, No Balls, Byes, etc.)</span></label>
+              <input
+                type="number" min="0"
+                value={innings[inningsIdx].extras || 0}
+                onChange={e => updateInnings(inningsIdx, 'extras', Number(e.target.value))}
+                className="input input-bordered input-sm"
+              />
+            </div>
+            <div className="form-control">
+              <label className="label py-0"><span className="label-text text-xs">Penalty Runs (given to this team)</span></label>
+              <input
+                type="number" min="0"
+                value={innings[inningsIdx].penaltyRuns || 0}
+                onChange={e => updateInnings(inningsIdx, 'penaltyRuns', Number(e.target.value))}
+                className="input input-bordered input-sm"
+              />
+            </div>
+          </div>
+        </div>
       </div>
     )
   }

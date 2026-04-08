@@ -39,10 +39,8 @@ const inningsSchema = new mongoose.Schema({
   runs: { type: Number, default: 0 },
   wickets: { type: Number, default: 0 },
   overs: { type: Number, default: 0 },
-  extras: {
-    wides: { type: Number, default: 0 },
-    noBalls: { type: Number, default: 0 }
-  }
+  extras: { type: Number, default: 0 },
+  penaltyRuns: { type: Number, default: 0 }
 }, { _id: false });
 
 const matchSchema = new mongoose.Schema(

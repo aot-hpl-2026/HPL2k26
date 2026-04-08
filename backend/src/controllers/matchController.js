@@ -138,9 +138,9 @@ export const submitMatchStats = asyncHandler(async (req, res) => {
 
     // Compute innings totals
     const battingRuns = batting.reduce((s, b) => s + b.runs, 0);
-    const totalWides = bowling.reduce((s, b) => s + (b.wides || 0), 0);
-    const totalNoBalls = bowling.reduce((s, b) => s + (b.noBalls || 0), 0);
-    const totalRuns = battingRuns + totalWides + totalNoBalls;
+    const extrasRuns = inning.extras || 0;
+    const penaltyRuns = inning.penaltyRuns || 0;
+    const totalRuns = battingRuns + extrasRuns + penaltyRuns;
     const totalWickets = batting.filter(b => b.isOut).length;
 
     // Total overs = sum of bowler overs (each bowler bowls distinct overs)
@@ -159,7 +159,8 @@ export const submitMatchStats = asyncHandler(async (req, res) => {
       runs: totalRuns,
       wickets: totalWickets,
       overs: totalOvers,
-      extras: { wides: totalWides, noBalls: totalNoBalls }
+      extras: extrasRuns,
+      penaltyRuns
     };
   });
 

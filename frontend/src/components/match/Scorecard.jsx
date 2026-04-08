@@ -30,12 +30,8 @@ const Scorecard = ({ match }) => {
     : { runs: innings1.runs || 0, wickets: innings1.wickets || 0, overs: innings1.overs || 0 }
 
   const getExtrasString = (innings) => {
-    const extras = innings.extras || {}
-    const parts = []
-    if (extras.wides) parts.push(`wd ${extras.wides}`)
-    if (extras.noBalls) parts.push(`nb ${extras.noBalls}`)
-    const total = (extras.wides || 0) + (extras.noBalls || 0)
-    return parts.length > 0 ? `${total} (${parts.join(', ')})` : '0'
+    const extras = typeof innings.extras === 'number' ? innings.extras : 0
+    return String(extras)
   }
 
   const currentBatting = selectedInnings === 'first' ? firstInningsBatting : secondInningsBatting
@@ -157,6 +153,12 @@ const Scorecard = ({ match }) => {
                 <td className="font-medium text-sm">Extras</td>
                 <td colSpan="5" className="text-center text-sm">{getExtrasString(currentInnings)}</td>
               </tr>
+              {(currentInnings.penaltyRuns > 0) && (
+                <tr>
+                  <td className="font-medium text-sm text-warning">Penalty</td>
+                  <td colSpan="5" className="text-center text-sm text-warning">+{currentInnings.penaltyRuns}</td>
+                </tr>
+              )}
               <tr className="font-bold">
                 <td className="text-sm">Total</td>
                 <td colSpan="5" className="text-center text-sm">
