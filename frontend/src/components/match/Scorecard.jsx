@@ -1,6 +1,15 @@
 import { motion } from 'framer-motion'
 import { useState } from 'react'
 
+// Returns "base+penalty/wickets" when penalty > 0, else "total/wickets"
+const formatScore = (score) => {
+  const penalty = score.penaltyRuns || 0
+  const total = score.runs || 0
+  const wickets = score.wickets || 0
+  if (penalty > 0) return `${total - penalty}+${penalty}/${wickets}`
+  return `${total}/${wickets}`
+}
+
 const Scorecard = ({ match }) => {
   const [selectedInnings, setSelectedInnings] = useState('first')
 
@@ -22,12 +31,12 @@ const Scorecard = ({ match }) => {
   const secondInningsBowling = innings2.bowling || []
 
   const team1Score = team1BattedFirst
-    ? { runs: innings1.runs || 0, wickets: innings1.wickets || 0, overs: innings1.overs || 0 }
-    : { runs: innings2.runs || 0, wickets: innings2.wickets || 0, overs: innings2.overs || 0 }
+    ? { runs: innings1.runs || 0, wickets: innings1.wickets || 0, overs: innings1.overs || 0, penaltyRuns: innings1.penaltyRuns || 0 }
+    : { runs: innings2.runs || 0, wickets: innings2.wickets || 0, overs: innings2.overs || 0, penaltyRuns: innings2.penaltyRuns || 0 }
 
   const team2Score = team1BattedFirst
-    ? { runs: innings2.runs || 0, wickets: innings2.wickets || 0, overs: innings2.overs || 0 }
-    : { runs: innings1.runs || 0, wickets: innings1.wickets || 0, overs: innings1.overs || 0 }
+    ? { runs: innings2.runs || 0, wickets: innings2.wickets || 0, overs: innings2.overs || 0, penaltyRuns: innings2.penaltyRuns || 0 }
+    : { runs: innings1.runs || 0, wickets: innings1.wickets || 0, overs: innings1.overs || 0, penaltyRuns: innings1.penaltyRuns || 0 }
 
   const getExtrasString = (innings) => {
     const extras = typeof innings.extras === 'number' ? innings.extras : 0
@@ -65,8 +74,8 @@ const Scorecard = ({ match }) => {
           <span className="block truncate">{team1BattedFirst ? team1.name : team2.name}</span>
           <span className="text-xs opacity-80">
             {team1BattedFirst
-              ? `${team1Score.runs}/${team1Score.wickets} (${team1Score.overs} ov)`
-              : `${team2Score.runs}/${team2Score.wickets} (${team2Score.overs} ov)`
+              ? `${formatScore(team1Score)} (${team1Score.overs} ov)`
+              : `${formatScore(team2Score)} (${team2Score.overs} ov)`
             }
           </span>
         </button>
@@ -81,8 +90,8 @@ const Scorecard = ({ match }) => {
           <span className="block truncate">{team1BattedFirst ? team2.name : team1.name}</span>
           <span className="text-xs opacity-80">
             {team1BattedFirst
-              ? `${team2Score.runs}/${team2Score.wickets} (${team2Score.overs} ov)`
-              : `${team1Score.runs}/${team1Score.wickets} (${team1Score.overs} ov)`
+              ? `${formatScore(team2Score)} (${team2Score.overs} ov)`
+              : `${formatScore(team1Score)} (${team1Score.overs} ov)`
             }
           </span>
         </button>
@@ -163,8 +172,8 @@ const Scorecard = ({ match }) => {
                 <td className="text-sm">Total</td>
                 <td colSpan="5" className="text-center text-sm">
                   {selectedInnings === 'first'
-                    ? `${team1BattedFirst ? team1Score.runs : team2Score.runs}/${team1BattedFirst ? team1Score.wickets : team2Score.wickets} (${team1BattedFirst ? team1Score.overs : team2Score.overs} overs)`
-                    : `${team1BattedFirst ? team2Score.runs : team1Score.runs}/${team1BattedFirst ? team2Score.wickets : team1Score.wickets} (${team1BattedFirst ? team2Score.overs : team1Score.overs} overs)`
+                    ? `${formatScore(team1BattedFirst ? team1Score : team2Score)} (${team1BattedFirst ? team1Score.overs : team2Score.overs} overs)`
+                    : `${formatScore(team1BattedFirst ? team2Score : team1Score)} (${team1BattedFirst ? team2Score.overs : team1Score.overs} overs)`
                   }
                 </td>
               </tr>

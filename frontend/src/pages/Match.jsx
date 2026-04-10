@@ -8,6 +8,15 @@ import { matchesApi } from '../services/api'
 import { Scorecard } from '../components/match'
 import { LoadingSpinner, ErrorState } from '../components/common'
 
+// Returns "base+penalty/wickets" when penalty > 0, else "total/wickets"
+const formatScore = (inns) => {
+  const penalty = inns?.penaltyRuns || 0
+  const total = inns?.runs ?? 0
+  const wickets = inns?.wickets ?? 0
+  if (penalty > 0) return `${total - penalty}+${penalty}/${wickets}`
+  return `${total}/${wickets}`
+}
+
 const Match = () => {
   const { matchId } = useParams()
   const [activeTab, setActiveTab] = useState('scorecard')
@@ -90,7 +99,7 @@ const Match = () => {
                   const inns = match?.innings?.find(i => i.battingTeam?.toString?.() === team1Id || i.battingTeam === team1Id)
                   return inns ? (
                     <p className="text-2xl font-bold">
-                      {inns.runs ?? 0}/{inns.wickets ?? 0}
+                      {formatScore(inns)}
                       <span className="text-sm font-normal text-base-content/60 ml-2">({inns.overs ?? 0} ov)</span>
                     </p>
                   ) : null
@@ -109,7 +118,7 @@ const Match = () => {
                   const inns = match?.innings?.find(i => i.battingTeam?.toString?.() === team2Id || i.battingTeam === team2Id)
                   return inns ? (
                     <p className="text-2xl font-bold">
-                      {inns.runs ?? 0}/{inns.wickets ?? 0}
+                      {formatScore(inns)}
                       <span className="text-sm font-normal text-base-content/60 ml-2">({inns.overs ?? 0} ov)</span>
                     </p>
                   ) : null
