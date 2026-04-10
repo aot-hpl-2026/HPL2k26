@@ -8,14 +8,23 @@ import { matchesApi } from '../services/api'
 import { Scorecard } from '../components/match'
 import { LoadingSpinner, ErrorState } from '../components/common'
 
-// "base+p/w" for positive penalty, "base-p/w" for negative, "total/w" for none
+// Renders "base/w" with a coloured, smaller penalty label when present
 const formatScore = (inns) => {
   const penalty = inns?.penaltyRuns || 0
   const total = inns?.runs ?? 0
   const wickets = inns?.wickets ?? 0
-  if (penalty > 0) return `${total - penalty}+${penalty}/${wickets}`
-  if (penalty < 0) return `${total - penalty}-${Math.abs(penalty)}/${wickets}`
-  return `${total}/${wickets}`
+  const base = penalty !== 0 ? total - penalty : total
+  return (
+    <>
+      {base}
+      {penalty !== 0 && (
+        <span className={`text-[0.55em] font-semibold align-middle mx-px ${penalty > 0 ? 'text-success' : 'text-error'}`}>
+          {penalty > 0 ? `+${penalty}` : `${penalty}`}
+        </span>
+      )}
+      /{wickets}
+    </>
+  )
 }
 
 const Match = () => {

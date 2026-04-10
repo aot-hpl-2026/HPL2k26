@@ -1,14 +1,23 @@
 import { motion } from 'framer-motion'
 import { useState } from 'react'
 
-// "base+p/w" for positive penalty, "base-p/w" for negative, "total/w" for none
+// Renders "base/w" with a coloured, smaller penalty label when present
 const formatScore = (score) => {
   const penalty = score.penaltyRuns || 0
   const total = score.runs || 0
   const wickets = score.wickets || 0
-  if (penalty > 0) return `${total - penalty}+${penalty}/${wickets}`
-  if (penalty < 0) return `${total - penalty}-${Math.abs(penalty)}/${wickets}`
-  return `${total}/${wickets}`
+  const base = penalty !== 0 ? total - penalty : total
+  return (
+    <>
+      {base}
+      {penalty !== 0 && (
+        <span className={`text-[0.65em] font-semibold align-middle mx-px ${penalty > 0 ? 'text-success' : 'text-error'}`}>
+          {penalty > 0 ? `+${penalty}` : `${penalty}`}
+        </span>
+      )}
+      /{wickets}
+    </>
+  )
 }
 
 const Scorecard = ({ match }) => {
@@ -74,10 +83,8 @@ const Scorecard = ({ match }) => {
         >
           <span className="block truncate">{team1BattedFirst ? team1.name : team2.name}</span>
           <span className="text-xs opacity-80">
-            {team1BattedFirst
-              ? `${formatScore(team1Score)} (${team1Score.overs} ov)`
-              : `${formatScore(team2Score)} (${team2Score.overs} ov)`
-            }
+            {team1BattedFirst ? formatScore(team1Score) : formatScore(team2Score)}
+            {' '}({team1BattedFirst ? team1Score.overs : team2Score.overs} ov)
           </span>
         </button>
         <button
@@ -90,10 +97,8 @@ const Scorecard = ({ match }) => {
         >
           <span className="block truncate">{team1BattedFirst ? team2.name : team1.name}</span>
           <span className="text-xs opacity-80">
-            {team1BattedFirst
-              ? `${formatScore(team2Score)} (${team2Score.overs} ov)`
-              : `${formatScore(team1Score)} (${team1Score.overs} ov)`
-            }
+            {team1BattedFirst ? formatScore(team2Score) : formatScore(team1Score)}
+            {' '}({team1BattedFirst ? team2Score.overs : team1Score.overs} ov)
           </span>
         </button>
       </div>
@@ -172,10 +177,12 @@ const Scorecard = ({ match }) => {
               <tr className="font-bold">
                 <td className="text-sm">Total</td>
                 <td colSpan="5" className="text-center text-sm">
-                  {selectedInnings === 'first'
-                    ? `${formatScore(team1BattedFirst ? team1Score : team2Score)} (${team1BattedFirst ? team1Score.overs : team2Score.overs} overs)`
-                    : `${formatScore(team1BattedFirst ? team2Score : team1Score)} (${team1BattedFirst ? team2Score.overs : team1Score.overs} overs)`
-                  }
+                  {(() => {
+                    const s = selectedInnings === 'first'
+                      ? (team1BattedFirst ? team1Score : team2Score)
+                      : (team1BattedFirst ? team2Score : team1Score)
+                    return <>{formatScore(s)} ({s.overs} overs)</>
+                  })()}
                 </td>
               </tr>
             </tfoot>
