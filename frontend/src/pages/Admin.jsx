@@ -1354,8 +1354,8 @@ const MatchStatsFormModal = ({ match, onClose, onSuccess }) => {
 
   const [toss, setToss] = useState({ winner: teamAId || '', decision: 'bat' })
   const [innings, setInnings] = useState([
-    { battingTeam: '', bowling: [], batting: [], extras: 0, penaltyRuns: 0 },
-    { battingTeam: '', bowling: [], batting: [], extras: 0, penaltyRuns: 0 }
+    { battingTeam: '', bowling: [], batting: [], extras: 0, penaltyRuns: 0, partialOverBalls: 0 },
+    { battingTeam: '', bowling: [], batting: [], extras: 0, penaltyRuns: 0, partialOverBalls: 0 }
   ])
   const [resultData, setResultData] = useState({ winner: '', resultType: 'runs', result: '' })
 
@@ -1384,11 +1384,12 @@ const MatchStatsFormModal = ({ match, onClose, onSuccess }) => {
         runsPerOver: b.runsPerOver || []
       })),
       extras: inn.extras || 0,
-      penaltyRuns: inn.penaltyRuns || 0
+      penaltyRuns: inn.penaltyRuns || 0,
+      partialOverBalls: inn.partialOverBalls || 0
     }))
     setInnings([
-      mapped[0] || { battingTeam: '', bowling: [], batting: [], extras: 0, penaltyRuns: 0 },
-      mapped[1] || { battingTeam: '', bowling: [], batting: [], extras: 0, penaltyRuns: 0 }
+      mapped[0] || { battingTeam: '', bowling: [], batting: [], extras: 0, penaltyRuns: 0, partialOverBalls: 0 },
+      mapped[1] || { battingTeam: '', bowling: [], batting: [], extras: 0, penaltyRuns: 0, partialOverBalls: 0 }
     ])
     setResultData({
       winner: id(match.winner) || '',
@@ -1524,7 +1525,8 @@ const MatchStatsFormModal = ({ match, onClose, onSuccess }) => {
           batting,
           bowling,
           extras: inn.extras || 0,
-          penaltyRuns: inn.penaltyRuns || 0
+          penaltyRuns: inn.penaltyRuns || 0,
+          partialOverBalls: inn.partialOverBalls || 0
         }
       })
 
@@ -1680,6 +1682,29 @@ const MatchStatsFormModal = ({ match, onClose, onSuccess }) => {
             <HiPlus className="w-3 h-3" /> Add Bowler
           </button>
         </div>
+
+        {/* Partial last over — shown at top so it's always visible */}
+        <div className="bg-warning/10 border border-warning/30 rounded-lg p-3">
+          <div className="flex items-center gap-4">
+            <div className="form-control flex-shrink-0">
+              <label className="label py-0">
+                <span className="label-text text-xs font-semibold">Balls in last (incomplete) over</span>
+              </label>
+              <input
+                type="number"
+                min="0"
+                max="5"
+                value={innings[inningsIdx].partialOverBalls || 0}
+                onChange={e => updateInnings(inningsIdx, 'partialOverBalls', Math.min(5, Math.max(0, Number(e.target.value) || 0)))}
+                className="input input-bordered input-sm w-20"
+              />
+            </div>
+            <p className="text-xs text-base-content/60">
+              Leave at <strong>0</strong> if all overs were completed. Set to 1–5 if the innings ended mid-over (e.g. batting team won before the over finished). Still enter the partial over&apos;s runs in the bowler&apos;s card below.
+            </p>
+          </div>
+        </div>
+
         {bowlingData.length === 0 && (
           <p className="text-base-content/50 text-sm text-center py-4">Click "Add Bowler" to start entering bowling data</p>
         )}
@@ -1736,6 +1761,7 @@ const MatchStatsFormModal = ({ match, onClose, onSuccess }) => {
             </div>
           </div>
         ))}
+
       </div>
     )
   }
@@ -1847,7 +1873,10 @@ const MatchStatsFormModal = ({ match, onClose, onSuccess }) => {
                   const penalty = inn.penaltyRuns ?? 0
                   const totalRuns = battingRuns + extras + penalty
                   const totalWickets = inn.batting.filter(b => b.dismissalType).length
-                  const totalOvers = inn.bowling.reduce((s, b) => s + (b.runsPerOver?.length || 0), 0)
+                  const fullOvers = inn.bowling.reduce((s, b) => s + (b.runsPerOver?.length || 0), 0)
+                  const partialBalls = inn.partialOverBalls || 0
+                  const completeOvers = partialBalls > 0 ? fullOvers - 1 : fullOvers
+                  const oversLabel = partialBalls > 0 ? `${completeOvers}.${partialBalls}` : `${fullOvers}`
                   const scoreLabel = penalty !== 0
                     ? `${battingRuns + extras}${penalty > 0 ? '+' : ''}${penalty}/${totalWickets}`
                     : `${totalRuns}/${totalWickets}`
@@ -1855,7 +1884,7 @@ const MatchStatsFormModal = ({ match, onClose, onSuccess }) => {
                     <div key={i}>
                       <span className="text-base-content/60">Innings {i + 1} ({getTeamName(battingTeamId)}): </span>
                       <strong>{scoreLabel}</strong>
-                      <span className="text-base-content/60"> ({totalOvers} ov) — {inn.batting.length} batsmen, {inn.bowling.length} bowlers</span>
+                      <span className="text-base-content/60"> ({oversLabel} ov) — {inn.batting.length} batsmen, {inn.bowling.length} bowlers</span>
                     </div>
                   )
                 })}

@@ -108,7 +108,14 @@ const applyMatchStats = async (match, body) => {
     const penaltyRuns = inning.penaltyRuns || 0;
     const totalRuns = battingRuns + extrasRuns + penaltyRuns;
     const totalWickets = batting.filter(b => b.isOut).length;
-    const totalOvers = bowling.reduce((s, b) => s + (b.overs || 0), 0);
+
+    // Overs: if the last over was incomplete (e.g. team won mid-over),
+    // subtract that full-over count and add the actual balls as a fraction.
+    const fullOvers = bowling.reduce((s, b) => s + (b.overs || 0), 0);
+    const partialBalls = inning.partialOverBalls || 0;
+    const totalOvers = partialBalls > 0
+      ? Number(((fullOvers - 1) + partialBalls / 6).toFixed(4))
+      : fullOvers;
 
     const bowlingTeam = inning.bowlingTeam ||
       (inning.battingTeam?.toString() === match.teamA._id.toString()
@@ -118,7 +125,7 @@ const applyMatchStats = async (match, body) => {
       battingTeam: inning.battingTeam, bowlingTeam,
       batting, bowling,
       runs: totalRuns, wickets: totalWickets, overs: totalOvers,
-      extras: extrasRuns, penaltyRuns
+      extras: extrasRuns, penaltyRuns, partialOverBalls: partialBalls
     };
   });
 
