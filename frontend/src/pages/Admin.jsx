@@ -1840,15 +1840,21 @@ const MatchStatsFormModal = ({ match, onClose, onSuccess }) => {
                 <p className="font-semibold">Summary</p>
                 {innings.map((inn, i) => {
                   const battingTeamId = inn.battingTeam || getBattingTeamForInnings(i + 1)
-                  const totalRuns = inn.batting.reduce((s, b) => {
+                  const battingRuns = inn.batting.reduce((s, b) => {
                     return s + (b.ones || 0) + 2*(b.twos || 0) + 3*(b.threes || 0) + 4*(b.fours || 0) + 5*(b.fives || 0) + 6*(b.sixes || 0)
                   }, 0)
+                  const extras = inn.extras || 0
+                  const penalty = inn.penaltyRuns ?? 0
+                  const totalRuns = battingRuns + extras + penalty
                   const totalWickets = inn.batting.filter(b => b.dismissalType).length
                   const totalOvers = inn.bowling.reduce((s, b) => s + (b.runsPerOver?.length || 0), 0)
+                  const scoreLabel = penalty !== 0
+                    ? `${battingRuns + extras}${penalty > 0 ? '+' : ''}${penalty}/${totalWickets}`
+                    : `${totalRuns}/${totalWickets}`
                   return (
                     <div key={i}>
                       <span className="text-base-content/60">Innings {i + 1} ({getTeamName(battingTeamId)}): </span>
-                      <strong>{totalRuns}/{totalWickets}</strong>
+                      <strong>{scoreLabel}</strong>
                       <span className="text-base-content/60"> ({totalOvers} ov) — {inn.batting.length} batsmen, {inn.bowling.length} bowlers</span>
                     </div>
                   )
