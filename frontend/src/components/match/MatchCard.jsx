@@ -4,16 +4,44 @@ import { HiCalendar, HiMapPin } from 'react-icons/hi2'
 import Badge from '../common/Badge'
 import { formatDate, formatTime, formatOvers, calculateRunRate } from '../../utils'
 
+// Renders "base/w" with a coloured smaller penalty label when present
+const ScoreDisplay = ({ innings }) => {
+  const penalty = innings?.penaltyRuns || 0
+  const total = innings?.runs || 0
+  const wickets = innings?.wickets ?? 0
+  const base = penalty !== 0 ? total - penalty : total
+  return (
+    <span>
+      {base}
+      {penalty !== 0 && (
+        <span className={`text-[0.6em] font-semibold align-middle mx-px ${penalty > 0 ? 'text-success' : 'text-error'}`}>
+          {penalty > 0 ? `+${penalty}` : `${penalty}`}
+        </span>
+      )}
+      /{wickets}
+    </span>
+  )
+}
+
 const MatchCard = ({ match, showDetails = true }) => {
   if (!match) return null
-  
+
   const isLive = match.status === 'live'
   const isCompleted = match.status === 'completed'
-  
+
   // Safely get team data with fallbacks
   const team1 = match.team1 || match.teamA || {}
   const team2 = match.team2 || match.teamB || {}
   const matchId = match.id || match._id
+
+  // For completed matches derive scores from innings array
+  const toId = (v) => v?._id?.toString?.() || v?.toString?.() || ''
+  const team1Id = toId(team1._id || team1.id)
+  const team2Id = toId(team2._id || team2.id)
+  const getInnings = (teamId) =>
+    match.innings?.find(inn => toId(inn.battingTeam) === teamId) || null
+  const team1Innings = isCompleted ? getInnings(team1Id) : null
+  const team2Innings = isCompleted ? getInnings(team2Id) : null
 
   return (
     <Link to={`/match/${matchId}`}>
@@ -61,7 +89,16 @@ const MatchCard = ({ match, showDetails = true }) => {
                 )}
               </div>
             </div>
-            {team1.score && (
+            {team1Innings ? (
+              <div className="text-right">
+                <p className="text-lg sm:text-xl font-bold text-base-content">
+                  <ScoreDisplay innings={team1Innings} />
+                </p>
+                <p className="text-sm text-base-content/60">
+                  ({formatOvers(team1Innings.overs || 0)} ov)
+                </p>
+              </div>
+            ) : team1.score ? (
               <div className="text-right">
                 <p className="text-lg sm:text-xl font-bold text-base-content">
                   {team1.score.runs || 0}/{team1.score.wickets || 0}
@@ -70,7 +107,7 @@ const MatchCard = ({ match, showDetails = true }) => {
                   ({formatOvers(team1.score.overs || 0)} ov)
                 </p>
               </div>
-            )}
+            ) : null}
           </div>
 
           <div className="divider my-0 text-xs text-base-content/40">VS</div>
@@ -101,7 +138,16 @@ const MatchCard = ({ match, showDetails = true }) => {
                 )}
               </div>
             </div>
-            {team2.score && (
+            {team2Innings ? (
+              <div className="text-right">
+                <p className="text-lg sm:text-xl font-bold text-base-content">
+                  <ScoreDisplay innings={team2Innings} />
+                </p>
+                <p className="text-sm text-base-content/60">
+                  ({formatOvers(team2Innings.overs || 0)} ov)
+                </p>
+              </div>
+            ) : team2.score ? (
               <div className="text-right">
                 <p className="text-lg sm:text-xl font-bold text-base-content">
                   {team2.score.runs || 0}/{team2.score.wickets || 0}
@@ -110,7 +156,7 @@ const MatchCard = ({ match, showDetails = true }) => {
                   ({formatOvers(team2.score.overs || 0)} ov)
                 </p>
               </div>
-            )}
+            ) : null}
           </div>
         </div>
 
