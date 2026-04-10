@@ -1653,9 +1653,9 @@ const MatchStatsFormModal = ({ match, onClose, onSuccess }) => {
             <div className="form-control">
               <label className="label py-0"><span className="label-text text-xs">Penalty Runs (given to this team)</span></label>
               <input
-                type="number" min="0"
-                value={innings[inningsIdx].penaltyRuns || 0}
-                onChange={e => updateInnings(inningsIdx, 'penaltyRuns', Number(e.target.value))}
+                type="number"
+                value={innings[inningsIdx].penaltyRuns ?? 0}
+                onChange={e => updateInnings(inningsIdx, 'penaltyRuns', e.target.value === '' ? 0 : Number(e.target.value))}
                 className="input input-bordered input-sm"
               />
             </div>
