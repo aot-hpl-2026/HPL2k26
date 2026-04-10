@@ -1,7 +1,9 @@
-import { derivePlayerStats, getTopBatsmen, getTopBowlers } from "../services/statsService.js";
+import { derivePlayerStats, getTopBatsmen, getTopBowlers, updateTeamStatsOnMatchComplete } from "../services/statsService.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 import { ok } from "../config/response.js";
 import Player from "../models/Player.js";
+import Match from "../models/Match.js";
+import { MATCH_STATUS } from "../config/constants.js";
 
 export const playerStats = asyncHandler(async (req, res) => {
   const data = await derivePlayerStats(req.params.playerId);
@@ -62,9 +64,21 @@ export const recalculateAllPlayerStats = asyncHandler(async (req, res) => {
     }
   }
 
-  return ok(res, { 
-    totalPlayers: players.length, 
-    updated, 
-    failed 
+  return ok(res, {
+    totalPlayers: players.length,
+    updated,
+    failed
   }, "stats_recalculated");
+});
+
+// Recalculate all team stats from completed match data
+export const recalculateAllTeamStats = asyncHandler(async (req, res) => {
+  const completedMatches = await Match.find({ status: MATCH_STATUS.COMPLETED }).select('_id').lean();
+  const processedTeams = new Set();
+
+  for (const match of completedMatches) {
+    await updateTeamStatsOnMatchComplete(match._id);
+  }
+
+  return ok(res, { matchesProcessed: completedMatches.length }, "team_stats_recalculated");
 });

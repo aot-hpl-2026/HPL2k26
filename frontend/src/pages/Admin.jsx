@@ -2015,15 +2015,19 @@ const StatsTab = () => {
   })
 
   const handleRecalculateStats = async () => {
-    if (!confirm('This will recalculate all player stats from completed match data. Continue?')) return
-    
+    if (!confirm('This will recalculate all player and team stats from completed match data. Continue?')) return
+
     setIsRecalculating(true)
     try {
-      const result = await playersApi.recalculateAllStats()
-      toast.success(`Stats recalculated! Updated ${result.data?.updated || 0} players.`)
+      const [playerResult] = await Promise.all([
+        playersApi.recalculateAllStats(),
+        playersApi.recalculateAllTeamStats(),
+      ])
+      toast.success(`Stats recalculated! Updated ${playerResult.data?.updated || 0} players.`)
       // Refresh all data
       queryClient.invalidateQueries(['admin-teams'])
       queryClient.invalidateQueries(['teams'])
+      queryClient.invalidateQueries(['pointsTable'])
       queryClient.invalidateQueries(['players'])
       refetchTeams()
     } catch (error) {

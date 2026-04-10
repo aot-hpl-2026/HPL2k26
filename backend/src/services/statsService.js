@@ -232,101 +232,71 @@ export const getTopBowlers = async (limit = 5) => {
   });
 };
 
-// Update team stats when a match is completed
-export const updateTeamStatsOnMatchComplete = async (matchId) => {
-  const match = await Match.findById(matchId)
-    .populate('teamA')
-    .populate('teamB')
-    .populate('winner');
+// Derive team stats from scratch by scanning all completed matches
+const deriveTeamStats = async (teamId) => {
+  const teamIdStr = teamId.toString();
+  const matches = await Match.find({
+    status: MATCH_STATUS.COMPLETED,
+    $or: [{ teamA: teamId }, { teamB: teamId }]
+  }).lean();
 
+  let matchesPlayed = 0, wins = 0, losses = 0, ties = 0, points = 0;
+  let runsScored = 0, runsConceded = 0, oversPlayed = 0, oversBowled = 0;
+
+  for (const match of matches) {
+    matchesPlayed++;
+
+    const winnerId = match.winner?.toString();
+    const teamAId = match.teamA.toString();
+    const teamBId = match.teamB.toString();
+    const isTeamA = teamAId === teamIdStr;
+
+    if (winnerId === teamIdStr) {
+      wins++;
+      points += 2;
+    } else if (winnerId && winnerId !== teamIdStr) {
+      losses++;
+    } else {
+      ties++;
+      points += 1;
+    }
+
+    for (const innings of (match.innings || [])) {
+      const battingTeam = innings.battingTeam?.toString();
+      if (battingTeam === teamIdStr) {
+        runsScored += innings.runs || 0;
+        oversPlayed += innings.overs || 0;
+      } else if (battingTeam === (isTeamA ? teamBId : teamAId)) {
+        runsConceded += innings.runs || 0;
+        oversBowled += innings.overs || 0;
+      }
+    }
+  }
+
+  let nrr = 0;
+  if (oversPlayed > 0 && oversBowled > 0) {
+    nrr = Number((runsScored / oversPlayed - runsConceded / oversBowled).toFixed(3));
+  }
+
+  return { matchesPlayed, wins, losses, ties, points, runsScored, runsConceded, oversPlayed, oversBowled, nrr };
+};
+
+// Update team stats when a match is completed — recalculates from scratch to avoid double-counting
+export const updateTeamStatsOnMatchComplete = async (matchId) => {
+  const match = await Match.findById(matchId).lean();
   if (!match || match.status !== MATCH_STATUS.COMPLETED) return;
 
-  const teamAId = match.teamA._id.toString();
-  const teamBId = match.teamB._id.toString();
-  const winnerId = match.winner?._id?.toString();
+  const teamIds = [match.teamA.toString(), match.teamB.toString()];
 
-  const innings1 = match.innings[0];
-  const innings2 = match.innings[1];
-
-  if (!innings1) return;
-
-  let teamABattingRuns = 0, teamABattingOvers = 0;
-  let teamBBattingRuns = 0, teamBBattingOvers = 0;
-
-  if (innings1.battingTeam?.toString() === teamAId) {
-    teamABattingRuns = innings1.runs || 0;
-    teamABattingOvers = innings1.overs || 0;
-  } else {
-    teamBBattingRuns = innings1.runs || 0;
-    teamBBattingOvers = innings1.overs || 0;
+  for (const teamId of teamIds) {
+    const stats = await deriveTeamStats(teamId);
+    await Team.findByIdAndUpdate(teamId, { $set: { stats } });
   }
-
-  if (innings2) {
-    if (innings2.battingTeam?.toString() === teamAId) {
-      teamABattingRuns = innings2.runs || 0;
-      teamABattingOvers = innings2.overs || 0;
-    } else {
-      teamBBattingRuns = innings2.runs || 0;
-      teamBBattingOvers = innings2.overs || 0;
-    }
-  }
-
-  const teamAUpdate = {
-    $inc: {
-      'stats.matchesPlayed': 1,
-      'stats.runsScored': teamABattingRuns,
-      'stats.runsConceded': teamBBattingRuns,
-      'stats.oversPlayed': teamABattingOvers,
-      'stats.oversBowled': teamBBattingOvers
-    }
-  };
-  if (winnerId === teamAId) {
-    teamAUpdate.$inc['stats.wins'] = 1;
-    teamAUpdate.$inc['stats.points'] = 2;
-  } else if (winnerId === teamBId) {
-    teamAUpdate.$inc['stats.losses'] = 1;
-  } else {
-    teamAUpdate.$inc['stats.ties'] = 1;
-    teamAUpdate.$inc['stats.points'] = 1;
-  }
-
-  const teamBUpdate = {
-    $inc: {
-      'stats.matchesPlayed': 1,
-      'stats.runsScored': teamBBattingRuns,
-      'stats.runsConceded': teamABattingRuns,
-      'stats.oversPlayed': teamBBattingOvers,
-      'stats.oversBowled': teamABattingOvers
-    }
-  };
-  if (winnerId === teamBId) {
-    teamBUpdate.$inc['stats.wins'] = 1;
-    teamBUpdate.$inc['stats.points'] = 2;
-  } else if (winnerId === teamAId) {
-    teamBUpdate.$inc['stats.losses'] = 1;
-  } else {
-    teamBUpdate.$inc['stats.ties'] = 1;
-    teamBUpdate.$inc['stats.points'] = 1;
-  }
-
-  await Team.findByIdAndUpdate(teamAId, teamAUpdate);
-  await Team.findByIdAndUpdate(teamBId, teamBUpdate);
-  await recalculateTeamNRR(teamAId);
-  await recalculateTeamNRR(teamBId);
 };
 
 export const recalculateTeamNRR = async (teamId) => {
-  const team = await Team.findById(teamId);
-  if (!team) return;
-
-  const { runsScored, runsConceded, oversPlayed, oversBowled } = team.stats;
-
-  if (oversPlayed > 0 && oversBowled > 0) {
-    const forRate = runsScored / oversPlayed;
-    const againstRate = runsConceded / oversBowled;
-    const nrr = Number((forRate - againstRate).toFixed(3));
-    await Team.findByIdAndUpdate(teamId, { 'stats.nrr': nrr });
-  }
+  const stats = await deriveTeamStats(teamId);
+  await Team.findByIdAndUpdate(teamId, { $set: { stats } });
 };
 
 // Update player career stats for all players involved in a match

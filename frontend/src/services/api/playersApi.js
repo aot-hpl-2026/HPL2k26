@@ -108,6 +108,15 @@ export const playersApi = {
     }
     return result
   },
+
+  // Recalculate all team stats from completed match data (Admin only)
+  recalculateAllTeamStats: async () => {
+    const result = await api.post('/stats/recalculate-teams')
+    if (!result.success) {
+      throw new Error(result.error || 'Failed to recalculate team stats')
+    }
+    return result
+  },
 }
 
 export default playersApi
