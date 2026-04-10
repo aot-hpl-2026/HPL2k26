@@ -293,11 +293,32 @@ export const getTopBatsmen = (limit = 5) => {
   return [...players]
     .sort((a, b) => b.stats.batting.runs - a.stats.batting.runs)
     .slice(0, limit)
+    .map((p, i) => ({
+      rank: i + 1,
+      id: p.id,
+      name: p.name,
+      team: p.teamId,
+      runs: p.stats.batting.runs,
+      balls: p.stats.batting.balls,
+      fours: p.stats.batting.fours,
+      sixes: p.stats.batting.sixes,
+      strikeRate: p.stats.batting.strikeRate
+    }))
 }
 export const getTopBowlers = (limit = 5) => {
   return [...players]
     .sort((a, b) => b.stats.bowling.wickets - a.stats.bowling.wickets)
     .slice(0, limit)
+    .map((p, i) => ({
+      rank: i + 1,
+      id: p.id,
+      name: p.name,
+      team: p.teamId,
+      wickets: p.stats.bowling.wickets,
+      overs: p.stats.bowling.overs,
+      runs: p.stats.bowling.runs,
+      economy: p.stats.bowling.economy
+    }))
 }
 
 export default players

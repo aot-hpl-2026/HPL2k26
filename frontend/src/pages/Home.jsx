@@ -130,10 +130,10 @@ const Home = () => {
             {/* Top Batsmen */}
             <div>
               {topBatsmen?.data && (
-                <TopPerformers 
+                <TopPerformers
                   title="🏏 Top Run Scorers"
                   players={topBatsmen.data}
-                  statKey="batting.runs"
+                  statKey="stats.batting.runs"
                   statLabel="runs"
                 />
               )}
@@ -142,10 +142,10 @@ const Home = () => {
             {/* Top Bowlers */}
             <div>
               {topBowlers?.data && (
-                <TopPerformers 
+                <TopPerformers
                   title="🎯 Top Wicket Takers"
                   players={topBowlers.data}
-                  statKey="bowling.wickets"
+                  statKey="stats.bowling.wickets"
                   statLabel="wickets"
                 />
               )}
