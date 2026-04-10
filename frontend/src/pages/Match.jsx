@@ -8,12 +8,13 @@ import { matchesApi } from '../services/api'
 import { Scorecard } from '../components/match'
 import { LoadingSpinner, ErrorState } from '../components/common'
 
-// Returns "base+penalty/wickets" when penalty > 0, else "total/wickets"
+// "base+p/w" for positive penalty, "base-p/w" for negative, "total/w" for none
 const formatScore = (inns) => {
   const penalty = inns?.penaltyRuns || 0
   const total = inns?.runs ?? 0
   const wickets = inns?.wickets ?? 0
   if (penalty > 0) return `${total - penalty}+${penalty}/${wickets}`
+  if (penalty < 0) return `${total - penalty}-${Math.abs(penalty)}/${wickets}`
   return `${total}/${wickets}`
 }
 

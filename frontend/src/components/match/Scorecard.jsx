@@ -1,12 +1,13 @@
 import { motion } from 'framer-motion'
 import { useState } from 'react'
 
-// Returns "base+penalty/wickets" when penalty > 0, else "total/wickets"
+// "base+p/w" for positive penalty, "base-p/w" for negative, "total/w" for none
 const formatScore = (score) => {
   const penalty = score.penaltyRuns || 0
   const total = score.runs || 0
   const wickets = score.wickets || 0
   if (penalty > 0) return `${total - penalty}+${penalty}/${wickets}`
+  if (penalty < 0) return `${total - penalty}-${Math.abs(penalty)}/${wickets}`
   return `${total}/${wickets}`
 }
 
