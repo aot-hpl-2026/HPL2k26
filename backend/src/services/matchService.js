@@ -44,6 +44,19 @@ export const updateMatch = async (matchId, payload, session = null) => {
   return match;
 };
 
+// Convert stored innings.overs to cricket notation (e.g. 6.4 = 6 overs + 4 balls).
+// Legacy data stored overs as a decimal fraction (6.667); newer data stores cricket
+// notation (6.4). partialOverBalls is the authoritative ball count — use it to
+// reconstruct the correct cricket notation regardless of what overs holds.
+const formatInningsOvers = (innings) => {
+  const partialBalls = innings.partialOverBalls || 0;
+  if (partialBalls === 0) return innings.overs || 0;
+  // Strip the fractional overs that represented partial balls, then re-add as tenths.
+  // Works for both legacy decimal (6.667 - 4/6 = 6) and new notation (6.4 - 4/6 ≈ 5.73 → round → 6).
+  const completeOvers = Math.round((innings.overs || 0) - partialBalls / 6);
+  return Number(`${completeOvers}.${partialBalls}`);
+};
+
 // Helper to add id fields to match and nested teams
 const addIdFields = (match) => {
   if (!match) return null;
@@ -52,7 +65,11 @@ const addIdFields = (match) => {
     id: match._id.toString(),
     teamA: match.teamA ? { ...match.teamA, id: match.teamA._id.toString() } : null,
     teamB: match.teamB ? { ...match.teamB, id: match.teamB._id.toString() } : null,
-    winner: match.winner ? { ...match.winner, id: match.winner._id.toString() } : null
+    winner: match.winner ? { ...match.winner, id: match.winner._id.toString() } : null,
+    innings: (match.innings || []).map(inn => ({
+      ...inn,
+      overs: formatInningsOvers(inn)
+    }))
   };
 };
 

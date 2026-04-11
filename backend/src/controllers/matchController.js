@@ -111,10 +111,12 @@ const applyMatchStats = async (match, body) => {
 
     // Overs: if the last over was incomplete (e.g. team won mid-over),
     // subtract that full-over count and add the actual balls as a fraction.
+    // Store in cricket notation (e.g. 6.4 = 6 overs + 4 balls), NOT as a
+    // decimal fraction (6.667), so the API response is human-readable.
     const fullOvers = bowling.reduce((s, b) => s + (b.overs || 0), 0);
     const partialBalls = inning.partialOverBalls || 0;
     const totalOvers = partialBalls > 0
-      ? Number(((fullOvers - 1) + partialBalls / 6).toFixed(4))
+      ? Number(((fullOvers - 1) + partialBalls / 10).toFixed(1))
       : fullOvers;
 
     const bowlingTeam = inning.bowlingTeam ||

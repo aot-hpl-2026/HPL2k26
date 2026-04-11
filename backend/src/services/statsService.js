@@ -232,6 +232,10 @@ export const getTopBowlers = async (limit = 5) => {
   });
 };
 
+// Convert cricket-notation overs (e.g. 6.4 = 6 overs + 4 balls) to actual decimal (6.667).
+// innings.overs is stored in cricket notation for display; NRR math needs real decimal.
+const cricketToDecimal = (overs) => Math.floor(overs) + ((overs % 1) * 10) / 6;
+
 // Derive team stats from scratch by scanning all completed matches
 const deriveTeamStats = async (teamId) => {
   const teamIdStr = teamId.toString();
@@ -263,12 +267,14 @@ const deriveTeamStats = async (teamId) => {
 
     for (const innings of (match.innings || [])) {
       const battingTeam = innings.battingTeam?.toString();
+      // innings.overs is in cricket notation (e.g. 6.4 = 40 balls); convert for real math
+      const decimalOvers = cricketToDecimal(innings.overs || 0);
       if (battingTeam === teamIdStr) {
         runsScored += innings.runs || 0;
-        oversPlayed += innings.overs || 0;
+        oversPlayed += decimalOvers;
       } else if (battingTeam === (isTeamA ? teamBId : teamAId)) {
         runsConceded += innings.runs || 0;
-        oversBowled += innings.overs || 0;
+        oversBowled += decimalOvers;
       }
     }
   }
